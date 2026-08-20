@@ -105,10 +105,11 @@ pub struct ShortcutKey {
 pub struct Node {
     pub desc: Option<String>,
     pub children: HashMap<ShortcutKey, Node>,
+    pub group_name: Option<String>,
 }
 
 impl Node {
-    pub fn new(desc: Option<String>) -> Self { Self { desc, children: HashMap::new() } }
+    pub fn new(desc: Option<String>) -> Self { Self { desc, children: HashMap::new(), group_name: None } }
     pub fn is_leaf(&self) -> bool { self.children.is_empty() }
 }
 
