@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Which-Key</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: transparent;
+            color: #fff;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .container {
+            display: none;
+            background: rgba(30, 30, 40, 0.75);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 16px 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+        }
+
+        .container.visible {
+            display: block;
+        }
+
+        .breadcrumb {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.6);
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .breadcrumb span {
+            margin: 0 4px;
+        }
+
+        .entries {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .entry {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            border-radius: 6px;
+            transition: background 0.15s;
+        }
+
+        .entry:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .entry.group {
+            border-left: 3px solid #4a9eff;
+            padding-left: 9px;
+        }
+
+        .key {
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 14px;
+            font-weight: 600;
+            color: #4a9eff;
+            min-width: 80px;
+            text-align: center;
+            background: rgba(74, 158, 255, 0.1);
+            padding: 4px 8px;
+            border-radius: 4px;
+            margin-right: 12px;
+        }
+
+        .desc {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.9);
+            flex: 1;
+        }
+
+        .group-indicator {
+            font-size: 11px;
+            color: rgba(74, 158, 255, 0.8);
+            margin-left: auto;
+            padding-left: 8px;
+        }
+
+        /* Animation */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .container.visible {
+            animation: fadeIn 0.2s ease-out;
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="container">
+        <div class="breadcrumb" id="breadcrumb"></div>
+        <div class="entries" id="entries"></div>
+    </div>
+
+    <script>
+        const container = document.getElementById('container');
+        const breadcrumbEl = document.getElementById('breadcrumb');
+        const entriesEl = document.getElementById('entries');
+
+        function renderEntries(entries, breadcrumb) {
+            // Update breadcrumb
+            if (breadcrumb.length > 0) {
+                breadcrumbEl.innerHTML = breadcrumb.map(b => `<span>${b}</span>`).join(' › ');
+                breadcrumbEl.style.display = 'block';
+            } else {
+                breadcrumbEl.style.display = 'none';
+            }
+
+            // Clear and render entries
+            entriesEl.innerHTML = '';
+            entries.forEach(entry => {
+                const div = document.createElement('div');
+                div.className = 'entry' + (entry.is_group ? ' group' : '');
+
+                const keySpan = document.createElement('span');
+                keySpan.className = 'key';
+                keySpan.textContent = entry.key;
+
+                const descSpan = document.createElement('span');
+                descSpan.className = 'desc';
+                descSpan.textContent = entry.desc;
+
+                div.appendChild(keySpan);
+                div.appendChild(descSpan);
+
+                if (entry.is_group) {
+                    const indicator = document.createElement('span');
+                    indicator.className = 'group-indicator';
+                    indicator.textContent = '▶';
+                    div.appendChild(indicator);
+                }
+
+                entriesEl.appendChild(div);
+            });
+        }
+
+        function show() {
+            container.classList.add('visible');
+        }
+
+        function hide() {
+            container.classList.remove('visible');
+        }
+
+        // Listen for messages from Rust
+        window.addEventListener('message', (event) => {
+            const data = event.data;
+
+            if (typeof data === 'string') {
+                try {
+                    const parsed = JSON.parse(data);
+                    handleMessage(parsed);
+                } catch (e) {
+                    console.error('Failed to parse message:', e);
+                }
+            } else {
+                handleMessage(data);
+            }
+        });
+
+        function handleMessage(data) {
+            switch (data.type) {
+                case 'show':
+                    show();
+                    renderEntries(data.entries || [], data.breadcrumb || []);
+                    break;
+                case 'update':
+                    renderEntries(data.entries || [], data.breadcrumb || []);
+                    break;
+                case 'hide':
+                    hide();
+                    break;
+            }
+        }
+
+        // Initial state: hidden
+        hide();
+    </script>
+</body>
+</html>
