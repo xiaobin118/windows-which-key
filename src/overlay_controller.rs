@@ -37,6 +37,7 @@ impl OverlayController {
     pub fn execute(&mut self, cmd: UiCommand) -> Result<()> {
         match cmd {
             UiCommand::Show { position, entries, breadcrumb } => {
+                log::debug!("Show overlay at {:?}, {} entries", position, entries.len());
                 let (x, y) = self.adjust_position(position);
                 self.window_manager.show(x, y, self.window_size.0, self.window_size.1)?;
 
@@ -49,6 +50,7 @@ impl OverlayController {
                 }
             }
             UiCommand::UpdateEntries { entries, breadcrumb } => {
+                log::debug!("Update entries: {} entries", entries.len());
                 if let Some(ref bridge) = self.webview_bridge {
                     bridge.send_command(&UiCommand::UpdateEntries {
                         entries,
@@ -57,6 +59,7 @@ impl OverlayController {
                 }
             }
             UiCommand::Hide => {
+                log::debug!("Hide overlay");
                 self.window_manager.hide()?;
                 if let Some(ref bridge) = self.webview_bridge {
                     bridge.send_command(&UiCommand::Hide)?;
