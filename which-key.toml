@@ -1,0 +1,24 @@
+# Which-Key Windows 配置文件
+# 修饰键: C=Ctrl, A=Alt, S=Shift, M=Win/Meta
+# 语法: "C-c" = { desc = "描述" }
+#        "g" = { desc = "组名", group = "组名" }
+
+[globals]
+"C-c" = { desc = "复制" }
+"C-v" = { desc = "粘贴" }
+"C-x" = { desc = "剪切" }
+"C-z" = { desc = "撤销" }
+"C-y" = { desc = "重做" }
+"C-s" = { desc = "保存" }
+"C-f" = { desc = "查找" }
+
+"g" = { desc = "Git", group = "git" }
+
+[globals.groups.git]
+"s" = { desc = "Git status" }
+"c" = { desc = "Git commit" }
+"p" = { desc = "Git push" }
+"l" = { desc = "Git log" }
+"d" = { desc = "Git diff" }
+"a" = { desc = "Git add" }
+"b" = { desc = "Git branch" }

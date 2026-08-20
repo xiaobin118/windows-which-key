@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use crate::types::*;
 
+#[derive(Clone)]
 pub struct ShortcutRegistry {
     pub globals: Node,
     pub applications: HashMap<String, Node>,
