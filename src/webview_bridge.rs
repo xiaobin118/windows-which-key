@@ -1,7 +1,9 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use serde_json::json;
 use windows::Win32::Foundation::HWND;
 use crate::types::UiCommand;
+
+pub const FRONTEND_HTML: &str = include_str!("frontend.html");
 
 // Stub implementation for now
 // Full WebView2 integration requires async initialization with callbacks
