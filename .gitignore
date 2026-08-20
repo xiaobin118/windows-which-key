@@ -1,0 +1,14 @@
+# Rust build artifacts
+/target
+
+# Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Local config
+local.toml
