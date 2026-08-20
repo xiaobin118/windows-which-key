@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use serde_json::json;
-use windows::Win32::Foundation::{E_POINTER, HWND};
+use windows::Win32::Foundation::{E_POINTER, HWND, RECT};
 use windows::Win32::System::Com::{CoInitializeEx, COINIT_APARTMENTTHREADED};
 use webview2_com::Microsoft::Web::WebView2::Win32::{
     CreateCoreWebView2EnvironmentWithOptions,
@@ -78,6 +78,18 @@ impl WebView2Bridge {
                 rx.recv()
                     .map_err(|_| anyhow::anyhow!("等待 WebView2 controller 超时"))??
             };
+
+            // ── 设置 controller 尺寸和可见性 ──
+            controller.SetBounds(RECT {
+                left: 0,
+                top: 0,
+                right: 400,
+                bottom: 300,
+            })
+            .context("设置 WebView2 bounds 失败")?;
+            controller
+                .SetIsVisible(true)
+                .context("设置 WebView2 可见性失败")?;
 
             let webview = controller
                 .CoreWebView2()
