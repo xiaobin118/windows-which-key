@@ -1,6 +1,7 @@
 pub mod config;
 pub mod foreground_app;
 pub mod hook;
+pub mod keymap_resolver;
 pub mod overlay_controller;
 pub mod plugin;
 pub mod registry;

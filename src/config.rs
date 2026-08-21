@@ -5,7 +5,11 @@ use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
+use std::path::Path;
 use std::path::PathBuf;
+use std::sync::{Arc, RwLock};
+
+use crate::plugin::{PluginLoadReport, PluginSnapshot, PluginWarning};
 
 #[derive(Debug, Deserialize)]
 struct RawConfig {
@@ -36,6 +40,74 @@ struct RawGroup {
 pub struct Config {
     pub registry: ShortcutRegistry,
     path: PathBuf,
+}
+
+/// Immutable configuration published as a single unit to runtime consumers.
+pub struct ConfigurationSnapshot {
+    pub global: ShortcutRegistry,
+    pub plugins: Arc<PluginSnapshot>,
+}
+
+/// Publishes configuration reloads atomically. Failed reloads leave the live snapshot untouched.
+pub struct ConfigurationService {
+    current: RwLock<Arc<ConfigurationSnapshot>>,
+}
+
+impl ConfigurationService {
+    pub fn new(snapshot: ConfigurationSnapshot) -> Self {
+        Self {
+            current: RwLock::new(Arc::new(snapshot)),
+        }
+    }
+
+    pub fn from_sources(
+        global_source: &str,
+        built_ins: &[(&str, &str)],
+        user_dir: &Path,
+    ) -> Result<(Self, Vec<PluginWarning>)> {
+        let (snapshot, warnings) = load_snapshot(global_source, built_ins, user_dir)?;
+        Ok((Self::new(snapshot), warnings))
+    }
+
+    pub fn current(&self) -> Arc<ConfigurationSnapshot> {
+        Arc::clone(&self.current.read().expect("configuration lock poisoned"))
+    }
+
+    pub fn reload(
+        &self,
+        global_source: &str,
+        built_ins: &[(&str, &str)],
+        user_dir: &Path,
+    ) -> Result<Vec<PluginWarning>> {
+        let (snapshot, warnings) = load_snapshot(global_source, built_ins, user_dir)?;
+        *self.current.write().expect("configuration lock poisoned") = Arc::new(snapshot);
+        Ok(warnings)
+    }
+
+    pub fn reload_from_sources(
+        &self,
+        global_source: &str,
+        built_ins: &[(&str, &str)],
+        user_dir: &Path,
+    ) -> Result<Vec<PluginWarning>> {
+        self.reload(global_source, built_ins, user_dir)
+    }
+}
+
+fn load_snapshot(
+    global_source: &str,
+    built_ins: &[(&str, &str)],
+    user_dir: &Path,
+) -> Result<(ConfigurationSnapshot, Vec<PluginWarning>)> {
+    let global = parse_toml(global_source)?;
+    let PluginLoadReport { snapshot, warnings } = PluginSnapshot::load(built_ins, user_dir)?;
+    Ok((
+        ConfigurationSnapshot {
+            global,
+            plugins: snapshot,
+        },
+        warnings,
+    ))
 }
 
 impl Config {
