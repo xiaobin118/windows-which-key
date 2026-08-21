@@ -202,9 +202,8 @@ fn pump_messages(
                                             warning.message
                                         );
                                     }
-                                    if let Some(command) = state_machine.dismiss() {
+                                    if let Some(command) = dismiss_after_successful_reload(state_machine, hook) {
                                         overlay.execute(command)?;
-                                        hook.set_show_all_open(false);
                                     }
                                 }
                                 Err(error) => log::warn!("配置重载失败，继续使用旧快照: {error:#}"),
@@ -240,6 +239,15 @@ fn show_all_is_open(state_machine: &state_machine::StateMachine) -> bool {
 
 fn capture_show_all_process(process: Result<Option<String>>) -> Result<String> {
     process?.context("未找到前台进程")
+}
+
+fn dismiss_after_successful_reload(
+    state_machine: &mut state_machine::StateMachine,
+    hook: &hook::KeyboardHook,
+) -> Option<types::UiCommand> {
+    let command = state_machine.dismiss();
+    hook.set_show_all_open(false);
+    command
 }
 
 unsafe extern "system" fn tray_window_proc(
@@ -367,5 +375,49 @@ mod tests {
             Some(types::UiCommand::Hide)
         ));
         assert!(!show_all_is_open(&state_machine));
+    }
+
+    #[test]
+    fn successful_reload_dismisses_show_all_and_uses_the_new_snapshot_on_next_trigger() {
+        const OLD: &str = "[globals]\n\"C-p\" = { desc = \"Old command\" }\n";
+        const NEW: &str = "[globals]\n\"C-p\" = { desc = \"New command\" }\n";
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let (configuration, _) = config::ConfigurationService::from_sources(
+            OLD,
+            plugin::BUILTIN_PLUGINS,
+            temp_dir.path(),
+        )
+        .unwrap();
+        let mut state_machine = state_machine::StateMachine::new(
+            keymap_resolver::KeymapResolver::from_snapshot(&configuration.current())
+                .resolve(None)
+                .registry,
+        );
+        state_machine.handle_event(types::KeyEvent::ToggleShowAll);
+
+        let (sender, _receiver) = mpsc::channel();
+        let hook = hook::KeyboardHook::new(sender).unwrap();
+        hook.set_show_all_open(true);
+
+        configuration
+            .reload(NEW, plugin::BUILTIN_PLUGINS, temp_dir.path())
+            .unwrap();
+        assert!(matches!(
+            dismiss_after_successful_reload(&mut state_machine, &hook),
+            Some(types::UiCommand::Hide)
+        ));
+        assert_eq!(state_machine.state, state_machine::State::Idle);
+        assert!(!hook.show_all_open_for_test());
+
+        let resolved = keymap_resolver::KeymapResolver::from_snapshot(&configuration.current())
+            .resolve(None);
+        state_machine.replace_registry(resolved.registry, resolved.app_name);
+        match state_machine.handle_event(types::KeyEvent::ToggleShowAll) {
+            Some(types::UiCommand::ShowAll { entries, .. }) => {
+                assert_eq!(entries[0].desc, "New command");
+            }
+            command => panic!("expected show-all from new snapshot, got {command:?}"),
+        }
     }
 }

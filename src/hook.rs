@@ -153,6 +153,10 @@ impl KeyboardHook {
     pub fn set_show_all_open(&self, open: bool) {
         SHOW_ALL_OPEN.store(open, Ordering::SeqCst);
     }
+
+    pub fn show_all_open_for_test(&self) -> bool {
+        SHOW_ALL_OPEN.load(Ordering::SeqCst)
+    }
 }
 
 unsafe extern "system" fn keyboard_proc(
