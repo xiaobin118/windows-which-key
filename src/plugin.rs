@@ -70,7 +70,10 @@ impl PluginSnapshot {
         let mut user_files = fs::read_dir(user_dir)
             .with_context(|| format!("failed to read user plugin directory: {}", user_dir.display()))?
             .collect::<std::result::Result<Vec<_>, _>>()?;
-        user_files.retain(|entry| entry.path().extension().is_some_and(|ext| ext.eq_ignore_ascii_case("toml")));
+        user_files.retain(|entry| {
+            entry.file_type().is_ok_and(|file_type| file_type.is_file())
+                && entry.path().extension().is_some_and(|ext| ext.eq_ignore_ascii_case("toml"))
+        });
         user_files.sort_by_key(|entry| entry.file_name().to_string_lossy().to_ascii_lowercase());
 
         let mut warnings = Vec::new();
@@ -290,7 +293,7 @@ category = "User"
 priority = "recommended"
 "#).unwrap();
         let report = PluginSnapshot::load(&[("builtin.toml", VALID)], dir.path()).unwrap();
-        let plugin = report.snapshot.for_process("code.exe").unwrap();
+        let plugin = report.snapshot.for_process("CoDe.ExE").unwrap();
         assert_eq!(plugin.name, "User VS Code");
         assert_eq!(plugin.bindings.len(), 2);
         assert_eq!(plugin.bindings[0].description, "User command palette");
@@ -327,5 +330,52 @@ disabled = true
         let error = PluginSnapshot::load(&[("one.toml", &first), ("two.toml", &second)], tempdir().unwrap().path()).unwrap_err();
         let message = error.to_string();
         assert!(message.contains("one") && message.contains("two") && message.contains("code.exe"));
+    }
+
+    #[test]
+    fn user_discovery_ignores_directories_and_nested_toml_files() {
+        let dir = tempdir().unwrap();
+        fs::create_dir(dir.path().join("ignored.toml")).unwrap();
+        let nested = dir.path().join("nested");
+        fs::create_dir(&nested).unwrap();
+        fs::write(nested.join("plugin.toml"), VALID).unwrap();
+        let report = PluginSnapshot::load(&[], dir.path()).unwrap();
+        assert!(report.snapshot.for_process("code.exe").is_none());
+        assert!(report.warnings.is_empty());
+    }
+
+    #[test]
+    fn user_files_are_sorted_case_insensitively_before_same_id_merge() {
+        let dir = tempdir().unwrap();
+        let first = VALID.replace("id = \"VSCode\"", "id = \"same\"").replace("description = \"Command palette\"", "description = \"A first\"");
+        let last = first.replace("description = \"A first\"", "description = \"Z last\"");
+        fs::write(dir.path().join("z.toml"), last).unwrap();
+        fs::write(dir.path().join("A.toml"), first).unwrap();
+        let report = PluginSnapshot::load(&[], dir.path()).unwrap();
+        assert_eq!(report.snapshot.for_process("code.exe").unwrap().bindings[0].description, "Z last");
+    }
+
+    #[test]
+    fn different_user_ids_claiming_one_process_are_fatal() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("one.toml"), VALID.replace("id = \"VSCode\"", "id = \"one\"")).unwrap();
+        fs::write(dir.path().join("two.toml"), VALID.replace("id = \"VSCode\"", "id = \"two\"")).unwrap();
+        let error = PluginSnapshot::load(&[], dir.path()).unwrap_err();
+        let message = error.to_string();
+        assert!(message.contains("one") && message.contains("two") && message.contains("code.exe"));
+    }
+
+    #[test]
+    fn user_only_plugin_is_indexed() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("user.toml"), VALID).unwrap();
+        assert!(PluginSnapshot::load(&[], dir.path()).unwrap().snapshot.for_process("code.exe").is_some());
+    }
+
+    #[test]
+    fn disabled_user_only_plugin_is_absent_from_index() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("disabled.toml"), VALID.replace("processes = [\"Code.exe\", \"CODE-INSIDERS.EXE\"]", "processes = [\"code.exe\"]\ndisabled = true")).unwrap();
+        assert!(PluginSnapshot::load(&[], dir.path()).unwrap().snapshot.for_process("code.exe").is_none());
     }
 }
