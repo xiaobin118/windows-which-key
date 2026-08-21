@@ -42,6 +42,8 @@ Configuration reloads must build a validated immutable snapshot before replaceme
 
 The detailed approved design is in `docs/superpowers/specs/2026-08-21-application-plugin-system-design.md`.
 
+The approved implementation plan is in `docs/superpowers/plans/2026-08-21-application-plugin-system.md`. The preserved source list for the first built-in plugins is in `docs/references/initial-built-in-shortcuts.md`.
+
 ## Current Scope Boundary
 
 The design is approved, but implementation has not started. Before implementation, create a detailed plan and preserve unrelated existing working-tree changes.
