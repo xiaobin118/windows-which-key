@@ -1,6 +1,7 @@
 pub mod config;
 pub mod hook;
 pub mod overlay_controller;
+pub mod plugin;
 pub mod registry;
 pub mod shortcut;
 pub mod state_machine;
