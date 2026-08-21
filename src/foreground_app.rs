@@ -88,9 +88,13 @@ mod tests {
         let error = get_window_thread_process_id_error(windows::core::Error::from_win32());
 
         assert_eq!(error.to_string(), "GetWindowThreadProcessId failed");
-        assert!(error
+        let win32_error = error
             .chain()
-            .skip(1)
-            .any(|cause| cause.downcast_ref::<windows::core::Error>().is_some()));
+            .find_map(|cause| cause.downcast_ref::<windows::core::Error>())
+            .expect("error chain should preserve the Win32 error");
+        assert_eq!(
+            win32_error.code(),
+            windows::core::HRESULT(0x8007_0005u32 as i32)
+        );
     }
 }
