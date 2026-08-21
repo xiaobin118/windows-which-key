@@ -96,6 +96,12 @@
             padding-left: 8px;
         }
 
+        .app-name, .category { font-weight: 700; color: #fff; margin: 8px 0; }
+        .category { color: #9fc4ff; font-size: 12px; text-transform: uppercase; }
+        .entry.essential .desc { font-weight: 700; }
+        .entry.recommended .desc { font-weight: 500; }
+        .entry.advanced .desc { opacity: 0.72; }
+
         /* Animation */
         @keyframes fadeIn {
             from {
@@ -162,12 +168,6 @@
                 entriesEl.appendChild(div);
             });
         }
-
-        .app-name, .category { font-weight: 700; color: #fff; margin: 8px 0; }
-        .category { color: #9fc4ff; font-size: 12px; text-transform: uppercase; }
-        .entry.essential .desc { font-weight: 700; }
-        .entry.recommended .desc { font-weight: 500; }
-        .entry.advanced .desc { opacity: 0.72; }
 
         function renderGroupedEntries(entries) {
             entriesEl.textContent = '';

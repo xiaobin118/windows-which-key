@@ -1,8 +1,8 @@
+use crate::registry::ShortcutRegistry;
+use crate::types::*;
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use crate::types::*;
-use crate::registry::ShortcutRegistry;
 
 const DELAY_MS: u64 = 300;
 
@@ -34,6 +34,15 @@ impl StateMachine {
     pub fn replace_registry(&mut self, registry: Arc<ShortcutRegistry>, app_name: String) {
         self.registry = registry;
         self.app_name = app_name;
+    }
+
+    pub fn dismiss(&mut self) -> Option<UiCommand> {
+        if matches!(self.state, State::Idle) {
+            return None;
+        }
+        self.state = State::Idle;
+        self.pressed_modifiers.clear();
+        Some(UiCommand::Hide)
     }
 
     pub fn handle_event(&mut self, event: KeyEvent) -> Option<UiCommand> {
@@ -147,7 +156,12 @@ impl StateMachine {
     #[cfg(test)]
     fn show_immediately_for_test(&mut self, modifiers: ModifierSet) {
         self.pressed_modifiers.clear();
-        for modifier in [Modifier::Ctrl, Modifier::Alt, Modifier::Shift, Modifier::Meta] {
+        for modifier in [
+            Modifier::Ctrl,
+            Modifier::Alt,
+            Modifier::Shift,
+            Modifier::Meta,
+        ] {
             if modifiers.contains_modifier(modifier) {
                 self.pressed_modifiers.insert(modifier);
             }
@@ -191,7 +205,8 @@ mod tests {
             modifiers: ModifierSet::CTRL,
             key: Key::C,
         };
-        root.children.insert(copy_key, Node::new(Some("Copy".to_string())));
+        root.children
+            .insert(copy_key, Node::new(Some("Copy".to_string())));
 
         let git_key = ShortcutKey {
             modifiers: ModifierSet::empty(),
@@ -204,7 +219,9 @@ mod tests {
             modifiers: ModifierSet::empty(),
             key: Key::S,
         };
-        git_node.children.insert(status_key, Node::new(Some("Git status".to_string())));
+        git_node
+            .children
+            .insert(status_key, Node::new(Some("Git status".to_string())));
 
         root.children.insert(git_key, git_node);
 
@@ -393,5 +410,4 @@ mod tests {
         assert_eq!(sm.state, State::Idle);
         assert!(matches!(result, Some(UiCommand::Hide)));
     }
-
 }

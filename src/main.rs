@@ -75,10 +75,22 @@ fn main() -> Result<()> {
 
         // 1. 处理键盘事件
         while let Ok(event) = rx.try_recv() {
-            if matches!(
-                event,
-                types::KeyEvent::ModifierDown(_) | types::KeyEvent::ToggleShowAll
-            ) {
+            if matches!(event, types::KeyEvent::ToggleShowAll) && !show_all_is_open(&state_machine)
+            {
+                let process = match capture_show_all_process(foreground.foreground_executable()) {
+                    Ok(process) => process,
+                    Err(error) => {
+                        log::warn!("拒绝打开 show-all: {error:#}");
+                        continue;
+                    }
+                };
+                let resolved =
+                    keymap_resolver::KeymapResolver::from_snapshot(&configuration.current())
+                        .resolve(Some(&process));
+                state_machine.replace_registry(resolved.registry, resolved.app_name);
+                show_all_process = Some(process);
+            }
+            if matches!(event, types::KeyEvent::ModifierDown(_)) {
                 let process = foreground.foreground_executable().unwrap_or_else(|error| {
                     log::warn!("读取前台进程失败: {error:#}");
                     None
@@ -87,9 +99,6 @@ fn main() -> Result<()> {
                     keymap_resolver::KeymapResolver::from_snapshot(&configuration.current())
                         .resolve(process.as_deref());
                 state_machine.replace_registry(resolved.registry, resolved.app_name);
-                if matches!(event, types::KeyEvent::ToggleShowAll) {
-                    show_all_process = process;
-                }
             }
             if let Some(cmd) = state_machine.handle_event(event) {
                 overlay.execute(cmd)?;
@@ -132,6 +141,9 @@ fn main() -> Result<()> {
             &configuration,
             &config_path,
             &plugin_dir,
+            &mut state_machine,
+            &mut overlay,
+            &hook,
         )?;
 
         // 4. 节流，避免忙等待
@@ -160,6 +172,9 @@ fn pump_messages(
     configuration: &config::ConfigurationService,
     config_path: &std::path::Path,
     plugin_dir: &std::path::Path,
+    state_machine: &mut state_machine::StateMachine,
+    overlay: &mut overlay_controller::OverlayController,
+    hook: &hook::KeyboardHook,
 ) -> Result<bool> {
     unsafe {
         let mut msg = MSG::default();
@@ -186,6 +201,10 @@ fn pump_messages(
                                             warning.path.display(),
                                             warning.message
                                         );
+                                    }
+                                    if let Some(command) = state_machine.dismiss() {
+                                        overlay.execute(command)?;
+                                        hook.set_show_all_open(false);
                                     }
                                 }
                                 Err(error) => log::warn!("配置重载失败，继续使用旧快照: {error:#}"),
@@ -217,6 +236,10 @@ fn global_config_path() -> Result<std::path::PathBuf> {
 
 fn show_all_is_open(state_machine: &state_machine::StateMachine) -> bool {
     matches!(state_machine.state, state_machine::State::BrowsingAll)
+}
+
+fn capture_show_all_process(process: Result<Option<String>>) -> Result<String> {
+    process?.context("未找到前台进程")
 }
 
 unsafe extern "system" fn tray_window_proc(
@@ -318,6 +341,31 @@ mod tests {
         state_machine.handle_event(types::KeyEvent::ToggleShowAll);
         assert!(show_all_is_open(&state_machine));
         state_machine.handle_event(types::KeyEvent::ToggleShowAll);
+        assert!(!show_all_is_open(&state_machine));
+    }
+
+    #[test]
+    fn show_all_requires_a_foreground_process() {
+        assert!(capture_show_all_process(Ok(None)).is_err());
+        assert!(capture_show_all_process(Err(anyhow::anyhow!("access denied"))).is_err());
+        assert_eq!(
+            capture_show_all_process(Ok(Some("code.exe".to_string()))).unwrap(),
+            "code.exe"
+        );
+    }
+
+    #[test]
+    fn reload_dismisses_an_active_state_machine() {
+        let registry = Arc::new(registry::ShortcutRegistry {
+            globals: types::Node::new(None),
+            applications: Default::default(),
+        });
+        let mut state_machine = state_machine::StateMachine::new(registry);
+        state_machine.handle_event(types::KeyEvent::ToggleShowAll);
+        assert!(matches!(
+            state_machine.dismiss(),
+            Some(types::UiCommand::Hide)
+        ));
         assert!(!show_all_is_open(&state_machine));
     }
 }

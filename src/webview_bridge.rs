@@ -198,4 +198,14 @@ mod tests {
         assert_eq!(value["entries"][0]["category"], "Editing");
         assert_eq!(value["entries"][0]["priority"], "essential");
     }
+
+    #[test]
+    fn frontend_styles_do_not_appear_inside_the_script() {
+        let script_start = FRONTEND_HTML.find("<script>").unwrap();
+        let script_end = FRONTEND_HTML.find("</script>").unwrap();
+        let script = &FRONTEND_HTML[script_start..script_end];
+
+        assert!(!script.contains(".app-name"));
+        assert!(FRONTEND_HTML[..script_start].contains(".app-name"));
+    }
 }
