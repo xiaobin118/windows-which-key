@@ -2,7 +2,7 @@ use crate::types::*;
 use anyhow::{Context, Result};
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::Sender;
+use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 use windows::Win32::Foundation::{LPARAM, LRESULT, WPARAM};
 use windows::Win32::UI::WindowsAndMessaging::*;
@@ -106,16 +106,24 @@ impl KeyboardHook {
 
     pub fn install(&self) -> Result<()> {
         let active = self.active.clone();
+        let (ready_sender, ready_receiver) = std::sync::mpsc::channel();
 
         std::thread::spawn(move || {
             unsafe {
-                let hook = SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_proc), None, 0)
+                let hook = match SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_proc), None, 0)
                     .context("Failed to install keyboard hook")
-                    .unwrap();
+                {
+                    Ok(hook) => hook,
+                    Err(error) => {
+                        let _ = ready_sender.send(Err(error));
+                        return;
+                    }
+                };
 
                 *HOOK_HANDLE.lock().unwrap() = Some(HookHandle(hook));
                 HOOK_ACTIVE.store(true, Ordering::SeqCst);
                 active.store(true, Ordering::SeqCst);
+                let _ = ready_sender.send(Ok(()));
 
                 // Message loop - required for hook to work
                 let mut msg = MSG::default();
@@ -126,12 +134,7 @@ impl KeyboardHook {
             }
         });
 
-        // Wait for hook to be installed
-        while !self.active.load(Ordering::SeqCst) {
-            std::thread::sleep(std::time::Duration::from_millis(10));
-        }
-
-        Ok(())
+        wait_for_hook_installation(ready_receiver)
     }
 
     pub fn uninstall(&self) -> Result<()> {
@@ -154,6 +157,13 @@ impl KeyboardHook {
     pub fn show_all_open_for_test(&self) -> bool {
         SHOW_ALL_OPEN.load(Ordering::SeqCst)
     }
+}
+
+fn wait_for_hook_installation(receiver: Receiver<Result<()>>) -> Result<()> {
+    receiver
+        .recv()
+        .context("Keyboard hook installation thread exited before reporting readiness")??;
+    Ok(())
 }
 
 unsafe extern "system" fn keyboard_proc(n_code: i32, w_param: WPARAM, l_param: LPARAM) -> LRESULT {
@@ -311,6 +321,16 @@ mod tests {
             decision.on_key_down(key("/"), false),
             HookAction::SendAndPass(KeyEvent::KeyDown(key("/")))
         );
+    }
+
+    #[test]
+    fn failed_hook_installation_is_returned_to_the_caller() {
+        let (sender, receiver) = mpsc::channel();
+        sender.send(Err(anyhow::anyhow!("access denied"))).unwrap();
+
+        let error = wait_for_hook_installation(receiver).unwrap_err();
+
+        assert!(error.to_string().contains("access denied"));
     }
 
     #[test]

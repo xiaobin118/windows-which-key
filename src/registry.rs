@@ -79,6 +79,18 @@ impl ShortcutRegistry {
         entries
     }
 
+    pub fn root_entries_for_modifiers(&self, modifiers: ModifierSet) -> Vec<DisplayEntry> {
+        let mut entries: Vec<DisplayEntry> = self
+            .globals
+            .children
+            .iter()
+            .filter(|(shortcut_key, _)| shortcut_key.modifiers == modifiers)
+            .map(|(shortcut_key, node)| display_entry(format_shortcut(shortcut_key), node))
+            .collect();
+        sort_entries(&mut entries);
+        entries
+    }
+
     pub fn resolve(&self, path: &[ShortcutKey], key: ShortcutKey) -> ResolveResult {
         let mut current = &self.globals;
 

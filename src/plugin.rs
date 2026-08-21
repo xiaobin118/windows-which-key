@@ -31,6 +31,7 @@ pub enum PluginOrigin {
 pub struct PluginDefinition {
     pub id: String,
     pub name: String,
+    pub description: Option<String>,
     pub processes: Vec<String>,
     pub bindings: Vec<PluginBinding>,
     pub origin: PluginOrigin,
@@ -56,6 +57,7 @@ struct RawPluginDefinition {
     schema_version: u32,
     id: String,
     name: String,
+    description: Option<String>,
     processes: Vec<String>,
     #[serde(default)]
     bindings: Vec<RawPluginBinding>,
@@ -82,6 +84,10 @@ pub fn parse_plugin_toml(source: &str, origin: PluginOrigin) -> Result<PluginDef
 
     let id = normalized_required("id", raw.id)?.to_ascii_lowercase();
     let name = normalized_required("name", raw.name)?;
+    let description = raw
+        .description
+        .map(|description| normalized_required("description", description))
+        .transpose()?;
     if raw.processes.is_empty() {
         bail!("Plugin processes cannot be empty");
     }
@@ -104,6 +110,7 @@ pub fn parse_plugin_toml(source: &str, origin: PluginOrigin) -> Result<PluginDef
     Ok(PluginDefinition {
         id,
         name,
+        description,
         processes,
         bindings,
         origin,
@@ -524,6 +531,26 @@ sequence = true
             BindingKeys::Alternatives(_)
         ));
         assert!(matches!(plugin.bindings[1].keys, BindingKeys::Sequence(_)));
+    }
+
+    #[test]
+    fn accepts_optional_plugin_description() {
+        let source = r#"
+schema_version = 1
+id = "vscode"
+name = "Visual Studio Code"
+description = "Editor shortcuts"
+processes = ["Code.exe"]
+
+[[bindings]]
+keys = ["C-p"]
+description = "Quick Open"
+category = "Common"
+priority = "essential"
+"#;
+
+        let plugin = parse_plugin_toml(source, PluginOrigin::BuiltIn).unwrap();
+        assert_eq!(plugin.description.as_deref(), Some("Editor shortcuts"));
     }
 
     #[test]

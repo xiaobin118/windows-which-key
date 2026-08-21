@@ -18,7 +18,7 @@ cargo run --bin which-key-windows
 
 ## 配置与插件位置
 
-全局配置位于 `%APPDATA%\which-key-windows\config.toml`，用户插件直接放在：
+全局配置位于 `%APPDATA%\which-key-windows\which-key.toml`，用户插件直接放在：
 
 ```text
 %APPDATA%\which-key-windows\plugins\
@@ -90,5 +90,5 @@ disabled = true
 ## 排查问题
 
 - 用户插件无效时，应用会忽略该文件并显示警告，其他插件仍会加载。检查 schema 版本、必填字段、按键写法和重复绑定。
-- 内置插件或全局配置无效会阻止配置加载；恢复随程序发布的内置文件，或修正 `%APPDATA%\which-key-windows\config.toml`。
+- 内置插件或全局配置无效会阻止配置加载；恢复随程序发布的内置文件，或修正 `%APPDATA%\which-key-windows\which-key.toml`。
 - 若启动时提示 WebView2 相关错误或窗口没有显示，安装/修复 WebView2 Runtime 后重试；确认 Windows 版本受支持。

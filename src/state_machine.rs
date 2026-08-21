@@ -105,7 +105,7 @@ impl StateMachine {
             State::Showing { path } => {
                 // Try to resolve the key in the current path
                 let shortcut_key = ShortcutKey {
-                    modifiers: ModifierSet::empty(),
+                    modifiers: self.current_modifiers(),
                     key,
                 };
 
@@ -153,6 +153,14 @@ impl StateMachine {
         })
     }
 
+    fn current_modifiers(&self) -> ModifierSet {
+        self.pressed_modifiers
+            .iter()
+            .fold(ModifierSet::empty(), |modifiers, modifier| {
+                modifiers | ModifierSet::from_modifier(*modifier)
+            })
+    }
+
     #[cfg(test)]
     fn show_immediately_for_test(&mut self, modifiers: ModifierSet) {
         self.pressed_modifiers.clear();
@@ -176,7 +184,9 @@ impl StateMachine {
                     // Transition to Showing
                     self.state = State::Showing { path: vec![] };
 
-                    let entries = self.registry.entries_at(&[]);
+                    let entries = self
+                        .registry
+                        .root_entries_for_modifiers(self.current_modifiers());
                     let breadcrumb = vec![];
 
                     Some(UiCommand::Show {
@@ -207,6 +217,14 @@ mod tests {
         };
         root.children
             .insert(copy_key, Node::new(Some("Copy".to_string())));
+
+        root.children.insert(
+            ShortcutKey {
+                modifiers: ModifierSet::CTRL | ModifierSet::SHIFT,
+                key: Key::P,
+            },
+            Node::new(Some("Command palette".to_string())),
+        );
 
         let git_key = ShortcutKey {
             modifiers: ModifierSet::empty(),
@@ -240,14 +258,14 @@ mod tests {
         let mut prefix = Node::new(Some("Prefix".to_string()));
         prefix.children.insert(
             ShortcutKey {
-                modifiers: ModifierSet::empty(),
+                modifiers: ModifierSet::CTRL,
                 key: Key::F,
             },
             Node::new(Some("Complete sequence".to_string())),
         );
         root.children.insert(
             ShortcutKey {
-                modifiers: ModifierSet::empty(),
+                modifiers: ModifierSet::CTRL,
                 key: Key::K,
             },
             prefix,
@@ -281,7 +299,7 @@ mod tests {
             Some(UiCommand::ShowAll { app_name, entries }) => {
                 assert_eq!(app_name, "editor.exe");
                 assert_eq!(entries.len(), 1);
-                assert_eq!(entries[0].key, "k, f");
+                assert_eq!(entries[0].key, "C-k, C-f");
             }
             _ => panic!("expected show-all command"),
         }
@@ -300,6 +318,71 @@ mod tests {
             sm.handle_event(KeyEvent::KeyDown(Key::F)),
             Some(UiCommand::Hide)
         ));
+    }
+
+    #[test]
+    fn ctrl_sequence_resolves_while_ctrl_is_held() {
+        let mut sm = sequence_state_machine();
+
+        sm.handle_event(KeyEvent::ModifierDown(Modifier::Ctrl));
+        if let State::Waiting { deadline } = &mut sm.state {
+            *deadline = Instant::now() - Duration::from_millis(1);
+        }
+        assert!(matches!(sm.tick(), Some(UiCommand::Show { .. })));
+
+        assert!(matches!(
+            sm.handle_event(KeyEvent::KeyDown(Key::K)),
+            Some(UiCommand::UpdateEntries { .. })
+        ));
+        assert!(matches!(
+            sm.handle_event(KeyEvent::KeyDown(Key::F)),
+            Some(UiCommand::Hide)
+        ));
+        assert!(matches!(
+            sm.handle_event(KeyEvent::ModifierUp(Modifier::Ctrl)),
+            Some(UiCommand::Hide)
+        ));
+    }
+
+    #[test]
+    fn showing_root_entries_match_exactly_held_modifiers() {
+        let mut sm = fixture_state_machine();
+
+        sm.handle_event(KeyEvent::ModifierDown(Modifier::Ctrl));
+        if let State::Waiting { deadline } = &mut sm.state {
+            *deadline = Instant::now() - Duration::from_millis(1);
+        }
+        match sm.tick() {
+            Some(UiCommand::Show { entries, .. }) => {
+                assert_eq!(entries.len(), 1);
+                assert_eq!(entries[0].key, "C-c");
+            }
+            command => panic!("expected Ctrl-only entries, got {command:?}"),
+        }
+
+        sm.dismiss();
+        sm.handle_event(KeyEvent::ModifierDown(Modifier::Ctrl));
+        sm.handle_event(KeyEvent::ModifierDown(Modifier::Shift));
+        if let State::Waiting { deadline } = &mut sm.state {
+            *deadline = Instant::now() - Duration::from_millis(1);
+        }
+        match sm.tick() {
+            Some(UiCommand::Show { entries, .. }) => {
+                assert_eq!(entries.len(), 1);
+                assert_eq!(entries[0].key, "C-S-p");
+            }
+            command => panic!("expected Ctrl+Shift entries, got {command:?}"),
+        }
+
+        sm.dismiss();
+        sm.handle_event(KeyEvent::ModifierDown(Modifier::Alt));
+        if let State::Waiting { deadline } = &mut sm.state {
+            *deadline = Instant::now() - Duration::from_millis(1);
+        }
+        match sm.tick() {
+            Some(UiCommand::Show { entries, .. }) => assert!(entries.is_empty()),
+            command => panic!("expected no Alt-only entries, got {command:?}"),
+        }
     }
 
     #[test]
@@ -385,9 +468,7 @@ mod tests {
         let registry = build_test_registry();
         let mut sm = StateMachine::new(registry);
 
-        // Get to Showing state
-        sm.handle_event(KeyEvent::ModifierDown(Modifier::Ctrl));
-        sm.state = State::Showing { path: vec![] };
+        sm.show_immediately_for_test(ModifierSet::empty());
 
         // Press 'g' to navigate to Git group
         let result = sm.handle_event(KeyEvent::KeyDown(Key::G));
