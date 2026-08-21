@@ -38,11 +38,18 @@ RuntimeSnapshotStore
 
 ```rust
 struct RuntimeSnapshot {
-    revision: String,
+    generation: u64,
+    revisions: ResourceRevisions,
     settings: AppSettings,
     theme: ThemeConfig,
     global_keymap: ShortcutRegistry,
     plugins: PluginSnapshot,
+}
+
+struct ResourceRevisions {
+    theme: ContentRevision,
+    global_config: ContentRevision,
+    plugins: HashMap<PluginId, ContentRevision>,
 }
 ```
 
@@ -84,7 +91,25 @@ JSON request
 
 ### 4.1 外部修改冲突
 
-控制面板打开页面时记录当前 `baseRevision`。保存请求必须携带该 revision；如果磁盘文件或运行时快照已被外部编辑改变，服务返回 `revision_conflict`，拒绝静默覆盖。
+配置资源分别维护 revision：主题、全局配置和每个插件各有独立的 `ContentRevision`；`generation` 只表示整体运行时快照发生过变化，不作为所有保存请求的冲突依据。控制面板打开页面时记录目标资源 revision，保存请求只携带对应资源的 revision。这样外部新增插件不会导致未修改主题的保存产生错误冲突。
+
+保存操作由 `ConfigurationService` 内部的写锁串行化，并在原子替换前再次检查目标资源 revision：
+
+```text
+取得配置写锁
+→ 读取并检查目标资源 revision
+→ 校验请求
+→ 构建候选文件和候选快照
+→ flush 临时文件
+→ 再次确认目标文件未变化
+→ atomic replace
+→ 递增 snapshot generation
+→ 交换 RuntimeSnapshot
+→ 释放写锁
+→ 通知 UI
+```
+
+如果目标资源已被外部编辑，服务返回 `revision_conflict`，拒绝静默覆盖。
 
 用户必须显式选择：
 
@@ -125,7 +150,7 @@ Dirty 状态下，主题只更新控制面板内的预览组件，不修改真�
 
 ### 6.1 Appearance
 
-表单编辑背景、边框、强调色、主/次文字颜色、透明度、圆角、模糊和行间距。右侧显示快捷键浮层预览；`Reset` 恢复默认值并保持 Dirty；保存成功后刷新 revision 并通知 overlay 使用新主题。
+表单编辑背景、边框、强调色、主/次文字颜色、透明度、圆角、模糊和行间距。右侧显示快捷键浮层预览；`Reset` 由前端从已加载的 `defaultTheme` 恢复表单并保持 Dirty，不直接持久化；只有 `saveTheme` 会写入文件，保存成功后刷新主题 revision 并通知 overlay 使用新主题。
 
 页面状态为：`Loading`、`Ready`、`Dirty`、`Saving`、`Saved`、`Conflict`、`Error`。
 
@@ -163,7 +188,7 @@ Dirty 状态下，主题只更新控制面板内的预览组件，不修改真�
 
 ## 7. WebView2 消息协议
 
-控制面板使用 WebView2 Web Message API 双向通信。Rust 不把用户内容拼接进动态 JavaScript 字符串。
+控制面板使用 WebView2 Web Message API 双向通信。Rust 不把用户内容拼接进动态 JavaScript 字符串。WebView2 必须拒绝外部导航和新窗口请求；Release 构建关闭 DevTools。
 
 请求格式：
 
@@ -171,8 +196,21 @@ Dirty 状态下，主题只更新控制面板内的预览组件，不修改真�
 {
   "requestId": "uuid",
   "type": "saveTheme",
-  "baseRevision": "sha256:...",
+  "resourceRevision": "sha256:theme-content",
   "payload": {}
+}
+```
+
+创建新插件不依赖已有插件资源，因此 `resourceRevision` 为 `null`；保存已有插件时必须携带该插件 ID 对应的 revision。
+
+```json
+{
+  "requestId": "uuid",
+  "type": "createPlugin",
+  "resourceRevision": null,
+  "payload": {
+    "id": "my-app"
+  }
 }
 ```
 
@@ -180,11 +218,10 @@ Dirty 状态下，主题只更新控制面板内的预览组件，不修改真�
 
 - `getControlPanelState`
 - `saveTheme`
-- `resetTheme`
 - `listPlugins`
 - `createPlugin`
 - `setPluginEnabled`
-- `openPluginFile`
+- `openPluginFile`（只提交插件 `id`，由 Rust 从已发现插件索引解析规范化路径）
 - `openPluginDirectory`
 - `reloadFromDisk`
 
@@ -193,17 +230,14 @@ Dirty 状态下，主题只更新控制面板内的预览组件，不修改真�
 ```json
 {
   "replyTo": "uuid",
-  "ok": false,
+  "ok": true,
   "data": null,
-  "error": {
-    "code": "validation_failed",
-    "field": "blur",
-    "message": "blur must be between 0 and 64"
-  }
+  "warnings": [],
+  "error": null
 }
 ```
 
-错误码固定为：`invalid_json`、`unknown_message`、`validation_failed`、`revision_conflict`、`path_not_allowed`、`plugin_invalid`、`file_io_failed`、`snapshot_build_failed`、`webview_unavailable`。
+失败响应将 `ok` 设为 `false` 并填写 `error`。成功响应可以携带 `warnings`，例如低对比度主题警告；warning 不伪装成失败。错误码固定为：`invalid_json`、`unknown_message`、`validation_failed`、`revision_conflict`、`path_not_allowed`、`plugin_invalid`、`file_io_failed`、`snapshot_build_failed`、`webview_unavailable`。
 
 字段错误携带 `field`；列表项错误携带 `itemIndex`，使前端可以精确定位错误。
 
@@ -220,9 +254,9 @@ Dirty 状态下，主题只更新控制面板内的预览组件，不修改真�
 
 ## 9. 测试与验收
 
-纯逻辑自动化测试覆盖：主题字段约束、默认值和 reset、JSON 协议、revision 冲突、候选快照失败时文件不变、成功保存后的单次快照交换、插件 ID 路径安全、插件校验和启停后的 resolver 结果。
+纯逻辑自动化测试覆盖：主题字段约束、默认值和前端 reset、JSON 协议、资源级 revision 冲突、候选快照失败时文件不变、成功保存后的单次快照交换、插件 ID 路径安全、插件校验和启停后的 resolver 结果。
 
-WebView2 集成测试覆盖：合法/非法 Web Message、结构化错误、用户内容不进入动态 JavaScript、保存成功后的 overlay 通知。
+WebView2 集成测试覆盖：合法/非法 Web Message、结构化错误、用户内容不进入动态 JavaScript、拒绝外部导航和新窗口、Release 不暴露 DevTools、保存成功后的 overlay 通知。
 
 Windows 手工验收覆盖：主题预览与保存、外部修改冲突、创建和禁用用户插件、非法路径拒绝、损坏插件隔离、Dirty 关闭确认和 WebView2 初始化失败提示。
 
