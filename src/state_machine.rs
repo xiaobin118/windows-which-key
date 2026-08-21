@@ -1,8 +1,8 @@
+use crate::registry::ShortcutRegistry;
+use crate::types::*;
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use crate::types::*;
-use crate::registry::ShortcutRegistry;
 
 const DELAY_MS: u64 = 300;
 
@@ -73,13 +73,29 @@ impl StateMachine {
                 None
             }
             State::Showing { path } => {
-                // Try to resolve the key in the current path
+                // Prefer a binding with the currently held modifiers (for example
+                // `C-c`), then fall back to an unmodified prefix (for example `g`
+                // while Ctrl is held to keep the which-key popup visible).
                 let shortcut_key = ShortcutKey {
+                    modifiers: self.current_modifier_set(),
+                    key,
+                };
+                let unmodified_key = ShortcutKey {
                     modifiers: ModifierSet::empty(),
                     key,
                 };
+                let resolved_key = if shortcut_key.modifiers.is_empty() {
+                    shortcut_key.clone()
+                } else if matches!(
+                    self.registry.resolve(path, shortcut_key.clone()),
+                    ResolveResult::NotFound
+                ) {
+                    unmodified_key.clone()
+                } else {
+                    shortcut_key.clone()
+                };
 
-                match self.registry.resolve(path, shortcut_key.clone()) {
+                match self.registry.resolve(path, resolved_key.clone()) {
                     ResolveResult::Leaf(entry) => {
                         // Show leaf info (for MVP, we just log it)
                         log::info!("Leaf: {} - {}", entry.key, entry.desc);
@@ -88,9 +104,12 @@ impl StateMachine {
                     ResolveResult::Group(breadcrumb) => {
                         // Navigate into group
                         let mut new_path = path.clone();
-                        new_path.push(shortcut_key);
+                        new_path.push(resolved_key);
 
-                        let entries = self.registry.entries_at(&new_path);
+                        let entries = self.registry.entries_at_with_modifiers(
+                            &new_path,
+                            Some(self.current_modifier_set()),
+                        );
                         self.state = State::Showing { path: new_path };
 
                         Some(UiCommand::UpdateEntries {
@@ -116,7 +135,10 @@ impl StateMachine {
                     // Transition to Showing
                     self.state = State::Showing { path: vec![] };
 
-                    let entries = self.registry.entries_at(&[]);
+                    let entries = self.registry.entries_at_with_modifiers(
+                        &[],
+                        Some(self.current_modifier_set()),
+                    );
                     let breadcrumb = vec![];
 
                     Some(UiCommand::Show {
@@ -130,6 +152,15 @@ impl StateMachine {
             }
             _ => None,
         }
+    }
+
+    fn current_modifier_set(&self) -> ModifierSet {
+        self.pressed_modifiers
+            .iter()
+            .fold(ModifierSet::empty(), |mut set, modifier| {
+                set.insert_modifier(*modifier);
+                set
+            })
     }
 }
 
@@ -145,7 +176,8 @@ mod tests {
             modifiers: ModifierSet::CTRL,
             key: Key::C,
         };
-        root.children.insert(copy_key, Node::new(Some("Copy".to_string())));
+        root.children
+            .insert(copy_key, Node::new(Some("Copy".to_string())));
 
         let git_key = ShortcutKey {
             modifiers: ModifierSet::empty(),
@@ -158,7 +190,9 @@ mod tests {
             modifiers: ModifierSet::empty(),
             key: Key::S,
         };
-        git_node.children.insert(status_key, Node::new(Some("Git status".to_string())));
+        git_node
+            .children
+            .insert(status_key, Node::new(Some("Git status".to_string())));
 
         root.children.insert(git_key, git_node);
 
@@ -256,6 +290,34 @@ mod tests {
         sm.state = State::Showing { path: vec![] };
 
         // Press 'g' to navigate to Git group
+        let result = sm.handle_event(KeyEvent::KeyDown(Key::G));
+
+        assert!(matches!(sm.state, State::Showing { path } if path.len() == 1));
+        assert!(matches!(result, Some(UiCommand::UpdateEntries { .. })));
+    }
+
+    #[test]
+    fn test_modifier_binding_uses_held_modifiers() {
+        let registry = build_test_registry();
+        let mut sm = StateMachine::new(registry);
+
+        sm.handle_event(KeyEvent::ModifierDown(Modifier::Ctrl));
+        sm.state = State::Showing { path: vec![] };
+
+        let result = sm.handle_event(KeyEvent::KeyDown(Key::C));
+
+        assert!(matches!(result, None));
+        assert!(matches!(sm.state, State::Showing { .. }));
+    }
+
+    #[test]
+    fn test_unmodified_group_can_be_entered_while_modifier_is_held() {
+        let registry = build_test_registry();
+        let mut sm = StateMachine::new(registry);
+
+        sm.handle_event(KeyEvent::ModifierDown(Modifier::Ctrl));
+        sm.state = State::Showing { path: vec![] };
+
         let result = sm.handle_event(KeyEvent::KeyDown(Key::G));
 
         assert!(matches!(sm.state, State::Showing { path } if path.len() == 1));

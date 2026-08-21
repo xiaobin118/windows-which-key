@@ -167,12 +167,28 @@ fn parse_key_string(s: &str) -> Result<ShortcutKey> {
         key_part = parts[parts.len() - 1];
     }
 
-    // Parse key
+    // Parse key. Besides letters, support common Windows virtual-key names.
     let key = if key_part.len() == 1 {
         let ch = key_part.chars().next().unwrap();
         Key::from_vk(ch.to_ascii_uppercase() as u32)
     } else {
-        anyhow::bail!("Unsupported key: {}", key_part);
+        let vk = match key_part.to_ascii_lowercase().as_str() {
+            "tab" => 0x09,
+            "enter" | "return" => 0x0D,
+            "esc" | "escape" => 0x1B,
+            "space" => 0x20,
+            "left" => 0x25,
+            "up" => 0x26,
+            "right" => 0x27,
+            "down" => 0x28,
+            "f4" => 0x73,
+            "home" => 0x24,
+            "end" => 0x23,
+            "backspace" => 0x08,
+            "delete" | "del" => 0x2E,
+            _ => anyhow::bail!("Unsupported key: {}", key_part),
+        };
+        Key::from_vk(vk)
     };
 
     Ok(ShortcutKey { modifiers, key })
@@ -202,53 +218,69 @@ mod tests {
     fn test_parse_group() {
         let toml = r#"
 [globals]
-"g" = { desc = "Git", group = "git" }
+"t" = { desc = "Tools", group = "tools" }
 
-[globals.groups.git]
-"s" = { desc = "Git status" }
-"c" = { desc = "Git commit" }
+[globals.groups.tools]
+"s" = { desc = "Tool status" }
+"c" = { desc = "Tool command" }
 "#;
         let registry = parse_toml(toml).unwrap();
         let entries = registry.entries_at(&[]);
         assert_eq!(entries.len(), 1);
         assert!(entries[0].is_group);
 
-        let git_key = ShortcutKey {
+        let tools_key = ShortcutKey {
             modifiers: ModifierSet::empty(),
-            key: Key::G,
+            key: Key::T,
         };
-        let git_entries = registry.entries_at(&[git_key]);
-        assert_eq!(git_entries.len(), 2);
+        let tools_entries = registry.entries_at(&[tools_key]);
+        assert_eq!(tools_entries.len(), 2);
     }
 
     #[test]
     fn test_parse_nested_group() {
         let toml = r#"
 [globals]
-"g" = { desc = "Git", group = "git" }
+"t" = { desc = "Tools", group = "tools" }
 
-[globals.groups.git]
-"d" = { desc = "Diff", group = "diff" }
+[globals.groups.tools]
+"d" = { desc = "Tool details", group = "details" }
 
-[globals.groups.git.groups.diff]
-"f" = { desc = "Diff file" }
-"b" = { desc = "Diff branch" }
+[globals.groups.tools.groups.details]
+"f" = { desc = "Tool file" }
+"b" = { desc = "Tool branch" }
 "#;
         let registry = parse_toml(toml).unwrap();
 
-        let git_key = ShortcutKey {
+        let tools_key = ShortcutKey {
             modifiers: ModifierSet::empty(),
-            key: Key::G,
+            key: Key::T,
         };
-        let git_entries = registry.entries_at(&[git_key.clone()]);
-        assert_eq!(git_entries.len(), 1);
-        assert!(git_entries[0].is_group);
+        let tools_entries = registry.entries_at(&[tools_key.clone()]);
+        assert_eq!(tools_entries.len(), 1);
+        assert!(tools_entries[0].is_group);
 
         let diff_key = ShortcutKey {
             modifiers: ModifierSet::empty(),
             key: Key::D,
         };
-        let diff_entries = registry.entries_at(&[git_key, diff_key]);
+        let diff_entries = registry.entries_at(&[tools_key, diff_key]);
         assert_eq!(diff_entries.len(), 2);
+    }
+
+    #[test]
+    fn test_parse_named_windows_keys() {
+        let toml = r#"
+[globals]
+"A-Tab" = { desc = "Switch window" }
+"A-S-F4" = { desc = "Close window" }
+"M-Left" = { desc = "Snap left" }
+"#;
+        let registry = parse_toml(toml).unwrap();
+        let entries = registry.entries_at(&[]);
+
+        assert!(entries.iter().any(|entry| entry.key == "A-Tab"));
+        assert!(entries.iter().any(|entry| entry.key == "A-S-F4"));
+        assert!(entries.iter().any(|entry| entry.key == "M-Left"));
     }
 }

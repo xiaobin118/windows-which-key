@@ -11,14 +11,60 @@
 "C-y" = { desc = "重做" }
 "C-s" = { desc = "保存" }
 "C-f" = { desc = "查找" }
+"C-a" = { desc = "全选" }
+"C-p" = { desc = "向上移动/上一项" }
+"C-n" = { desc = "向下移动/下一项" }
+"C-w" = { desc = "关闭窗口/删除前一个单词" }
+"C-t" = { desc = "新建标签页" }
+"C-r" = { desc = "刷新/重新加载" }
+"C-h" = { desc = "查找并替换" }
+"C-o" = { desc = "打开文件" }
+"C-l" = { desc = "聚焦地址栏（浏览器）" }
+"C-d" = { desc = "收藏当前页面（浏览器）" }
+"C-j" = { desc = "打开下载记录（浏览器）" }
 
-"g" = { desc = "Git", group = "git" }
+# Alt 常用快捷键
+"A-f" = { desc = "打开文件菜单（多数 Windows 程序）" }
+"A-e" = { desc = "打开编辑菜单（多数 Windows 程序）" }
+"A-v" = { desc = "打开视图菜单（多数 Windows 程序）" }
+"A-h" = { desc = "打开帮助菜单（多数 Windows 程序）" }
+"A-Tab" = { desc = "切换应用窗口" }
+"A-S-Tab" = { desc = "反向切换应用窗口" }
+"A-F4" = { desc = "关闭当前窗口" }
+"A-Enter" = { desc = "查看所选文件属性" }
+"A-Space" = { desc = "打开当前窗口菜单" }
+"A-Left" = { desc = "后退" }
+"A-Right" = { desc = "前进" }
+"A-Up" = { desc = "返回上一级（资源管理器）" }
+"A-Esc" = { desc = "按打开顺序切换窗口" }
 
-[globals.groups.git]
-"s" = { desc = "Git status" }
-"c" = { desc = "Git commit" }
-"p" = { desc = "Git push" }
-"l" = { desc = "Git log" }
-"d" = { desc = "Git diff" }
-"a" = { desc = "Git add" }
-"b" = { desc = "Git branch" }
+# Ctrl+Shift 常用快捷键
+"C-S-c" = { desc = "复制（部分终端/编辑器）" }
+"C-S-v" = { desc = "粘贴（部分终端/编辑器）" }
+"C-S-p" = { desc = "命令面板（VS Code 等程序）" }
+"C-S-n" = { desc = "新建窗口（部分程序）" }
+"C-S-t" = { desc = "恢复已关闭标签页（浏览器）" }
+"C-S-w" = { desc = "关闭当前标签页（浏览器）" }
+"C-S-z" = { desc = "重做（部分编辑器）" }
+"C-S-s" = { desc = "另存为（多数应用）" }
+
+# Win / Meta 常用系统快捷键
+"M-d" = { desc = "显示或恢复桌面" }
+"M-e" = { desc = "打开文件资源管理器" }
+"M-i" = { desc = "打开 Windows 设置" }
+"M-l" = { desc = "锁定电脑" }
+"M-r" = { desc = "打开运行" }
+"M-s" = { desc = "打开 Windows 搜索" }
+"M-v" = { desc = "打开剪贴板历史" }
+"M-a" = { desc = "打开快速设置" }
+"M-n" = { desc = "打开通知中心" }
+"M-x" = { desc = "打开高级系统菜单" }
+"M-p" = { desc = "切换投影或显示模式" }
+"M-k" = { desc = "打开无线显示连接" }
+"M-g" = { desc = "打开 Xbox Game Bar" }
+"M-u" = { desc = "打开辅助功能设置" }
+"M-z" = { desc = "打开贴靠布局（Windows 11）" }
+"M-m" = { desc = "最小化所有窗口" }
+"M-S-m" = { desc = "恢复最小化的窗口" }
+"M-S-s" = { desc = "打开截图工具" }
+"M-C-d" = { desc = "新建虚拟桌面" }

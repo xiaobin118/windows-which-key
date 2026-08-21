@@ -9,6 +9,16 @@ pub struct ShortcutRegistry {
 
 impl ShortcutRegistry {
     pub fn entries_at(&self, path: &[ShortcutKey]) -> Vec<DisplayEntry> {
+        self.entries_at_with_modifiers(path, None)
+    }
+
+    /// Return entries relevant to the currently held modifiers. Unmodified
+    /// entries are retained because they can be used as which-key prefixes.
+    pub fn entries_at_with_modifiers(
+        &self,
+        path: &[ShortcutKey],
+        active_modifiers: Option<ModifierSet>,
+    ) -> Vec<DisplayEntry> {
         let mut current = &self.globals;
 
         for key in path {
@@ -21,6 +31,11 @@ impl ShortcutRegistry {
         let mut entries: Vec<DisplayEntry> = current
             .children
             .iter()
+            .filter(|(shortcut_key, _)| {
+                active_modifiers
+                    .map(|active| shortcut_key.modifiers.is_empty() || shortcut_key.modifiers == active)
+                    .unwrap_or(true)
+            })
             .map(|(shortcut_key, node)| {
                 let key_str = format_shortcut_key(shortcut_key);
                 DisplayEntry {
@@ -91,6 +106,19 @@ fn format_shortcut_key(key: &ShortcutKey) -> String {
             let ch = (b'a' + (key.key.0 - 0x41) as u8) as char;
             ch.to_string()
         }
+        0x08 => "Backspace".to_string(),
+        0x09 => "Tab".to_string(),
+        0x0D => "Enter".to_string(),
+        0x1B => "Esc".to_string(),
+        0x20 => "Space".to_string(),
+        0x23 => "End".to_string(),
+        0x24 => "Home".to_string(),
+        0x25 => "Left".to_string(),
+        0x26 => "Up".to_string(),
+        0x27 => "Right".to_string(),
+        0x28 => "Down".to_string(),
+        0x2E => "Delete".to_string(),
+        0x73 => "F4".to_string(),
         _ => format!("VK_{:02X}", key.key.0),
     };
 
@@ -145,6 +173,16 @@ mod tests {
 
         let git_entry = entries.iter().find(|e| e.desc == "Git").unwrap();
         assert!(git_entry.is_group);
+    }
+
+    #[test]
+    fn test_entries_filter_by_active_modifiers() {
+        let registry = build_test_registry();
+        let entries = registry.entries_at_with_modifiers(&[], Some(ModifierSet::CTRL));
+
+        assert!(entries.iter().any(|entry| entry.key == "C-c"));
+        assert!(entries.iter().any(|entry| entry.key == "g"));
+        assert!(!entries.iter().any(|entry| entry.key == "A-c"));
     }
 
     #[test]

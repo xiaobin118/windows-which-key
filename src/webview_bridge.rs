@@ -1,11 +1,14 @@
 use anyhow::{Context, Result};
 use serde_json::json;
+use windows::core::Interface;
 use windows::Win32::Foundation::{E_POINTER, HWND, RECT};
 use windows::Win32::System::Com::{CoInitializeEx, COINIT_APARTMENTTHREADED};
 use webview2_com::Microsoft::Web::WebView2::Win32::{
     CreateCoreWebView2EnvironmentWithOptions,
     ICoreWebView2,
     ICoreWebView2Controller,
+    ICoreWebView2Controller2,
+    COREWEBVIEW2_COLOR,
 };
 use webview2_com::{
     CreateCoreWebView2ControllerCompletedHandler, CreateCoreWebView2EnvironmentCompletedHandler,
@@ -91,6 +94,15 @@ impl WebView2Bridge {
                 .SetIsVisible(true)
                 .context("设置 WebView2 可见性失败")?;
 
+            // The HTML background can only be translucent if the WebView2
+            // controller itself also has an alpha-zero background.
+            let controller2: ICoreWebView2Controller2 = controller
+                .cast()
+                .context("获取 WebView2 controller2 失败")?;
+            controller2
+                .SetDefaultBackgroundColor(COREWEBVIEW2_COLOR { A: 0, R: 0, G: 0, B: 0 })
+                .context("设置 WebView2 透明背景失败")?;
+
             let webview = controller
                 .CoreWebView2()
                 .context("获取 CoreWebView2 失败")?;
@@ -115,6 +127,15 @@ impl WebView2Bridge {
             self.webview
                 .NavigateToString(&html_str)
                 .context("加载 HTML 失败")?;
+        }
+        Ok(())
+    }
+
+    pub fn set_bounds(&self, width: i32, height: i32) -> Result<()> {
+        unsafe {
+            self._controller
+                .SetBounds(RECT { left: 0, top: 0, right: width, bottom: height })
+                .context("更新 WebView2 bounds 失败")?;
         }
         Ok(())
     }

@@ -21,79 +21,137 @@
 
         .container {
             display: none;
-            background: rgba(30, 30, 40, 0.75);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 12px;
-            padding: 16px 20px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-            max-width: 600px;
+            width: min(640px, calc(100vw - 32px));
+            background:
+                radial-gradient(circle at 100% 0%, rgba(111, 92, 255, 0.18), transparent 38%),
+                linear-gradient(145deg, rgba(19, 25, 48, 0.94), rgba(11, 15, 31, 0.91));
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(145, 164, 255, 0.2);
+            border-radius: 20px;
+            padding: 18px;
+            max-height: 100vh;
+            overflow-y: auto;
         }
 
         .container.visible {
             display: block;
         }
 
+        .topbar {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 4px 4px 16px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .brand-mark {
+            display: grid;
+            width: 34px;
+            height: 34px;
+            place-items: center;
+            color: #dfe7ff;
+            font: 700 16px/1 Consolas, 'Courier New', monospace;
+            background: linear-gradient(135deg, #618cff, #8c6bff);
+            border-radius: 10px;
+        }
+
+        .title {
+            font-size: 18px;
+            font-weight: 650;
+            letter-spacing: -0.02em;
+        }
+
+        .subtitle {
+            margin-top: 3px;
+            color: rgba(210, 220, 255, 0.56);
+            font-size: 11px;
+        }
+
+        .context-chip {
+            flex: 0 0 auto;
+            padding: 6px 9px;
+            color: #a9c5ff;
+            font: 700 10px/1 Consolas, 'Courier New', monospace;
+            letter-spacing: 0.08em;
+            background: rgba(83, 137, 255, 0.12);
+            border: 1px solid rgba(111, 155, 255, 0.24);
+            border-radius: 999px;
+        }
+
         .breadcrumb {
             font-size: 12px;
-            color: rgba(255, 255, 255, 0.6);
-            margin-bottom: 12px;
-            padding-bottom: 8px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            color: rgba(210, 220, 255, 0.58);
+            margin: 0 4px 12px;
+            padding: 10px 0 12px;
+            border-top: 1px solid rgba(145, 164, 255, 0.12);
+            border-bottom: 1px solid rgba(145, 164, 255, 0.12);
         }
 
-        .breadcrumb span {
-            margin: 0 4px;
-        }
+        .breadcrumb span { margin: 0 3px; }
+        .breadcrumb span:last-child { color: #dfe7ff; font-weight: 600; }
 
-        .entries {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
+        .entries { display: flex; flex-direction: column; gap: 6px; }
 
         .entry {
             display: flex;
             align-items: center;
+            min-height: 44px;
             padding: 8px 12px;
-            border-radius: 6px;
-            transition: background 0.15s;
+            border: 1px solid transparent;
+            border-radius: 10px;
+            transition: background 0.15s, border-color 0.15s, transform 0.15s;
         }
 
         .entry:hover {
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(117, 145, 255, 0.12);
+            border-color: rgba(126, 154, 255, 0.2);
+            transform: translateX(2px);
         }
 
         .entry.group {
-            border-left: 3px solid #4a9eff;
+            border-left: 3px solid #6d8dff;
             padding-left: 9px;
+            background: rgba(93, 116, 255, 0.08);
         }
 
         .key {
             font-family: 'Consolas', 'Courier New', monospace;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
-            color: #4a9eff;
-            min-width: 80px;
+            color: #a9c5ff;
+            min-width: 74px;
             text-align: center;
-            background: rgba(74, 158, 255, 0.1);
+            background: rgba(83, 137, 255, 0.13);
+            border: 1px solid rgba(111, 155, 255, 0.2);
             padding: 4px 8px;
-            border-radius: 4px;
+            border-radius: 7px;
             margin-right: 12px;
         }
 
-        .desc {
-            font-size: 13px;
-            color: rgba(255, 255, 255, 0.9);
-            flex: 1;
-        }
+        .desc { font-size: 13px; color: rgba(237, 241, 255, 0.92); flex: 1; }
 
         .group-indicator {
             font-size: 11px;
-            color: rgba(74, 158, 255, 0.8);
+            color: rgba(142, 167, 255, 0.85);
             margin-left: auto;
             padding-left: 8px;
+        }
+
+        .footer {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 14px;
+            padding: 0 4px;
+            color: rgba(210, 220, 255, 0.42);
+            font: 10px Consolas, 'Courier New', monospace;
         }
 
         /* Animation */
@@ -115,8 +173,19 @@
 </head>
 <body>
     <div class="container" id="container">
+        <div class="topbar">
+            <div class="brand">
+                <div class="brand-mark">⌘</div>
+                <div>
+                    <div class="title">Which-Key</div>
+                    <div class="subtitle">Keyboard shortcuts available in this context</div>
+                </div>
+            </div>
+            <div class="context-chip">ACTIVE · GLOBALS</div>
+        </div>
         <div class="breadcrumb" id="breadcrumb"></div>
         <div class="entries" id="entries"></div>
+        <div class="footer">ESC to close</div>
     </div>
 
     <script>
@@ -127,14 +196,26 @@
         function renderEntries(entries, breadcrumb) {
             // Update breadcrumb
             if (breadcrumb.length > 0) {
-                breadcrumbEl.innerHTML = breadcrumb.map(b => `<span>${b}</span>`).join(' › ');
+                breadcrumbEl.replaceChildren();
+                breadcrumb.forEach((item, index) => {
+                    if (index > 0) {
+                        const separator = document.createElement('span');
+                        separator.textContent = '›';
+                        breadcrumbEl.appendChild(separator);
+                    }
+
+                    const crumb = document.createElement('span');
+                    crumb.textContent = item;
+                    breadcrumbEl.appendChild(crumb);
+                });
                 breadcrumbEl.style.display = 'block';
             } else {
+                breadcrumbEl.replaceChildren();
                 breadcrumbEl.style.display = 'none';
             }
 
             // Clear and render entries
-            entriesEl.innerHTML = '';
+            entriesEl.replaceChildren();
             entries.forEach(entry => {
                 const div = document.createElement('div');
                 div.className = 'entry' + (entry.is_group ? ' group' : '');

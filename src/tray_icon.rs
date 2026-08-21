@@ -129,7 +129,6 @@ impl Drop for TrayIcon {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     #[test]
     fn test_tray_icon_creation() {
