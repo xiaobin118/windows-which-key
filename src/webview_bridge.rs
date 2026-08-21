@@ -136,6 +136,13 @@ impl WebView2Bridge {
                     "breadcrumb": breadcrumb
                 })
             }
+            UiCommand::ShowAll { app_name, entries } => {
+                json!({
+                    "type": "showAll",
+                    "appName": app_name,
+                    "entries": entries
+                })
+            }
             UiCommand::Hide => {
                 json!({
                     "type": "hide"

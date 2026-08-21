@@ -58,6 +58,13 @@ impl OverlayController {
                     })?;
                 }
             }
+            UiCommand::ShowAll { app_name, entries } => {
+                self.window_manager
+                    .show(100, 100, self.window_size.0, self.window_size.1)?;
+                if let Some(ref bridge) = self.webview_bridge {
+                    bridge.send_command(&UiCommand::ShowAll { app_name, entries })?;
+                }
+            }
             UiCommand::Hide => {
                 log::debug!("Hide overlay");
                 self.window_manager.hide()?;

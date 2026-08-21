@@ -111,12 +111,13 @@ impl ModifierSet {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeyEvent {
     KeyDown(Key),
     KeyUp(Key),
     ModifierDown(Modifier),
     ModifierUp(Modifier),
+    ToggleShowAll,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -184,6 +185,10 @@ pub enum UiCommand {
         position: (i32, i32),
         entries: Vec<DisplayEntry>,
         breadcrumb: Vec<String>,
+    },
+    ShowAll {
+        app_name: String,
+        entries: Vec<DisplayEntry>,
     },
     UpdateEntries {
         entries: Vec<DisplayEntry>,
