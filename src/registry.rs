@@ -143,10 +143,25 @@ fn insert_binding(
                     format_shortcut(key)
                 );
             }
+            update_group_metadata(next, metadata);
             current = next;
         }
     }
     Ok(())
+}
+
+fn update_group_metadata(group: &mut Node, candidate: &BindingMetadata) {
+    let should_replace = match group.metadata.as_ref() {
+        None => true,
+        Some(existing) => {
+            candidate.priority < existing.priority
+                || (candidate.priority == existing.priority
+                    && candidate.category < existing.category)
+        }
+    };
+    if should_replace {
+        group.metadata = Some(candidate.clone());
+    }
 }
 
 fn merge_node(lower_priority: &mut Node, higher_priority: &Node) {
@@ -435,6 +450,67 @@ priority = "{priority}"
         let entries = registry.all_entries();
 
         assert!(entries.iter().any(|entry| entry.key == "C-k, C-f"));
+    }
+
+    #[test]
+    fn sequence_prefix_inherits_its_binding_metadata_for_display() {
+        let plugin = parse_plugin_toml(TEST_PLUGIN, PluginOrigin::BuiltIn).unwrap();
+        let registry = ShortcutRegistry::from_plugin(&plugin).unwrap();
+
+        let prefix = registry
+            .entries_at(&[])
+            .into_iter()
+            .find(|entry| entry.key == "C-k")
+            .unwrap();
+
+        assert!(prefix.is_group);
+        assert_eq!(prefix.category, "Editing");
+        assert_eq!(prefix.priority, BindingPriority::Recommended);
+    }
+
+    #[test]
+    fn shared_sequence_prefix_uses_highest_priority_then_category_metadata() {
+        let plugin = parse_plugin_toml(
+            r#"
+schema_version = 1
+id = "shared-prefix"
+name = "Shared Prefix"
+processes = ["shared-prefix.exe"]
+
+[[bindings]]
+keys = ["C-k", "C-z"]
+description = "Zebra"
+category = "Zebra"
+priority = "essential"
+sequence = true
+
+[[bindings]]
+keys = ["C-k", "C-a"]
+description = "Alpha"
+category = "Alpha"
+priority = "essential"
+sequence = true
+
+[[bindings]]
+keys = ["C-k", "C-r"]
+description = "Recommended"
+category = "Recommended"
+priority = "recommended"
+sequence = true
+"#,
+            PluginOrigin::BuiltIn,
+        )
+        .unwrap();
+        let registry = ShortcutRegistry::from_plugin(&plugin).unwrap();
+
+        let prefix = registry
+            .entries_at(&[])
+            .into_iter()
+            .find(|entry| entry.key == "C-k")
+            .unwrap();
+
+        assert_eq!(prefix.category, "Alpha");
+        assert_eq!(prefix.priority, BindingPriority::Essential);
     }
 
     #[test]
