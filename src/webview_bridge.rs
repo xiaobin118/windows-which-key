@@ -168,6 +168,8 @@ mod tests {
                 key: "C-c".to_string(),
                 desc: "Copy".to_string(),
                 is_group: false,
+                category: "Windows".to_string(),
+                priority: BindingPriority::Recommended,
             }],
             breadcrumb: vec![],
         };

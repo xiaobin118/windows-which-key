@@ -174,6 +174,8 @@ pub struct DisplayEntry {
     pub key: String,
     pub desc: String,
     pub is_group: bool,
+    pub category: String,
+    pub priority: BindingPriority,
 }
 
 #[derive(Debug)]
