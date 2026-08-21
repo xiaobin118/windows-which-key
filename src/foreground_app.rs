@@ -23,6 +23,10 @@ impl Drop for OwnedProcessHandle {
     }
 }
 
+fn get_window_thread_process_id_error(error: windows::core::Error) -> anyhow::Error {
+    anyhow::Error::new(error).context("GetWindowThreadProcessId failed")
+}
+
 impl ForegroundAppProvider for Win32ForegroundAppProvider {
     fn foreground_executable(&self) -> Result<Option<String>> {
         unsafe {
@@ -33,7 +37,7 @@ impl ForegroundAppProvider for Win32ForegroundAppProvider {
 
             let mut process_id = 0;
             if GetWindowThreadProcessId(foreground_window, Some(&mut process_id)) == 0 {
-                anyhow::bail!("GetWindowThreadProcessId failed");
+                return Err(get_window_thread_process_id_error(windows::core::Error::from_win32()));
             }
 
             let process = OwnedProcessHandle(
@@ -73,5 +77,20 @@ mod tests {
             Some("code.exe".to_string())
         );
         assert_eq!(normalize_executable_path(""), None);
+    }
+
+    #[test]
+    fn thread_process_id_error_preserves_context_and_win32_error() {
+        unsafe {
+            windows::Win32::Foundation::SetLastError(windows::Win32::Foundation::WIN32_ERROR(5));
+        }
+
+        let error = get_window_thread_process_id_error(windows::core::Error::from_win32());
+
+        assert_eq!(error.to_string(), "GetWindowThreadProcessId failed");
+        assert!(error
+            .chain()
+            .skip(1)
+            .any(|cause| cause.downcast_ref::<windows::core::Error>().is_some()));
     }
 }
