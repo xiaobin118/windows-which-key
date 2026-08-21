@@ -42,7 +42,6 @@ struct RawPluginDefinition {
     id: String,
     name: String,
     processes: Vec<String>,
-    #[serde(default)]
     bindings: Vec<RawPluginBinding>,
 }
 
@@ -73,6 +72,9 @@ pub fn parse_plugin_toml(source: &str, origin: PluginOrigin) -> Result<PluginDef
         .into_iter()
         .map(|process| normalized_required("process", process).map(|value| value.to_lowercase()))
         .collect::<Result<Vec<_>>>()?;
+    if raw.bindings.is_empty() {
+        bail!("Plugin bindings cannot be empty");
+    }
 
     let mut seen_bindings = HashSet::new();
     let bindings = raw
@@ -190,6 +192,26 @@ category="Common"
 priority="essential"
 "#;
         assert!(parse_plugin_toml(empty_keys, PluginOrigin::BuiltIn).is_err());
+    }
+
+    #[test]
+    fn rejects_missing_or_empty_bindings() {
+        let missing_bindings = r#"
+schema_version = 1
+id = "x"
+name = "X"
+processes = ["x.exe"]
+"#;
+        assert!(parse_plugin_toml(missing_bindings, PluginOrigin::BuiltIn).is_err());
+
+        let empty_bindings = r#"
+schema_version = 1
+id = "x"
+name = "X"
+processes = ["x.exe"]
+bindings = []
+"#;
+        assert!(parse_plugin_toml(empty_bindings, PluginOrigin::BuiltIn).is_err());
     }
 
     #[test]
