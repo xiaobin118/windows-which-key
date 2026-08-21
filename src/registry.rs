@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use crate::types::*;
+use crate::shortcut::format_shortcut;
 
 #[derive(Clone)]
 pub struct ShortcutRegistry {
@@ -22,7 +23,7 @@ impl ShortcutRegistry {
             .children
             .iter()
             .map(|(shortcut_key, node)| {
-                let key_str = format_shortcut_key(shortcut_key);
+                let key_str = format_shortcut(shortcut_key);
                 DisplayEntry {
                     key: key_str,
                     desc: node.desc.clone().unwrap_or_default(),
@@ -53,15 +54,15 @@ impl ShortcutRegistry {
             Some(node) => {
                 if node.children.is_empty() {
                     ResolveResult::Leaf(DisplayEntry {
-                        key: format_shortcut_key(&key),
+                        key: format_shortcut(&key),
                         desc: node.desc.clone().unwrap_or_default(),
                         is_group: false,
                     })
                 } else {
                     let mut breadcrumb: Vec<String> = path.iter()
-                        .map(|k| format_shortcut_key(k))
+                        .map(|k| format_shortcut(k))
                         .collect();
-                    breadcrumb.push(format_shortcut_key(&key));
+                    breadcrumb.push(format_shortcut(&key));
                     ResolveResult::Group(breadcrumb)
                 }
             }
@@ -70,33 +71,6 @@ impl ShortcutRegistry {
     }
 }
 
-fn format_shortcut_key(key: &ShortcutKey) -> String {
-    let mut parts = Vec::new();
-
-    if key.modifiers.contains(ModifierSet::CTRL) {
-        parts.push("C");
-    }
-    if key.modifiers.contains(ModifierSet::ALT) {
-        parts.push("A");
-    }
-    if key.modifiers.contains(ModifierSet::SHIFT) {
-        parts.push("S");
-    }
-    if key.modifiers.contains(ModifierSet::META) {
-        parts.push("M");
-    }
-
-    let key_char = match key.key.0 {
-        0x41..=0x5A => {
-            let ch = (b'a' + (key.key.0 - 0x41) as u8) as char;
-            ch.to_string()
-        }
-        _ => format!("VK_{:02X}", key.key.0),
-    };
-
-    parts.push(&key_char);
-    parts.join("-")
-}
 
 #[cfg(test)]
 mod tests {

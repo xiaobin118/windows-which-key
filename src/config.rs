@@ -5,6 +5,7 @@ use anyhow::{Context, Result};
 use serde::Deserialize;
 use crate::types::*;
 use crate::registry::ShortcutRegistry;
+use crate::shortcut::parse_shortcut;
 
 #[derive(Debug, Deserialize)]
 struct RawConfig {
@@ -78,7 +79,7 @@ fn build_node_from_keymap(keymap: RawKeymap) -> Result<Node> {
 
     // Add direct bindings
     for (key_str, binding) in keymap.bindings {
-        let shortcut_key = parse_key_string(&key_str)?;
+        let shortcut_key = parse_shortcut(&key_str)?;
         let child_node = if let Some(group_name) = binding.group {
             // This is a group reference, create a group node
             let mut group_node = Node::new(Some(binding.desc));
@@ -86,7 +87,7 @@ fn build_node_from_keymap(keymap: RawKeymap) -> Result<Node> {
             group_node
         } else {
             // This is a leaf binding
-            Node::new(Some(binding.desc))
+            Node::new_binding(binding.desc, BindingMetadata { category: "Windows".into(), priority: BindingPriority::Recommended })
         };
         node.children.insert(shortcut_key, child_node);
     }
@@ -116,13 +117,13 @@ fn build_node_from_group(name: String, group: RawGroup) -> Result<Node> {
 
     // Add direct bindings
     for (key_str, binding) in group.bindings {
-        let shortcut_key = parse_key_string(&key_str)?;
+        let shortcut_key = parse_shortcut(&key_str)?;
         let child_node = if let Some(group_name) = binding.group {
             let mut group_node = Node::new(Some(binding.desc));
             group_node.group_name = Some(group_name);
             group_node
         } else {
-            Node::new(Some(binding.desc))
+            Node::new_binding(binding.desc, BindingMetadata { category: "Windows".into(), priority: BindingPriority::Recommended })
         };
         node.children.insert(shortcut_key, child_node);
     }
@@ -145,38 +146,6 @@ fn build_node_from_group(name: String, group: RawGroup) -> Result<Node> {
     Ok(node)
 }
 
-fn parse_key_string(s: &str) -> Result<ShortcutKey> {
-    let parts: Vec<&str> = s.split('-').collect();
-
-    let mut modifiers = ModifierSet::empty();
-    let key_part;
-
-    if parts.len() == 1 {
-        key_part = parts[0];
-    } else {
-        // Parse modifiers
-        for &part in &parts[..parts.len() - 1] {
-            match part.to_lowercase().as_str() {
-                "c" | "ctrl" | "control" => modifiers |= ModifierSet::CTRL,
-                "a" | "alt" => modifiers |= ModifierSet::ALT,
-                "s" | "shift" => modifiers |= ModifierSet::SHIFT,
-                "m" | "meta" | "win" => modifiers |= ModifierSet::META,
-                _ => anyhow::bail!("Unknown modifier: {}", part),
-            }
-        }
-        key_part = parts[parts.len() - 1];
-    }
-
-    // Parse key
-    let key = if key_part.len() == 1 {
-        let ch = key_part.chars().next().unwrap();
-        Key::from_vk(ch.to_ascii_uppercase() as u32)
-    } else {
-        anyhow::bail!("Unsupported key: {}", key_part);
-    };
-
-    Ok(ShortcutKey { modifiers, key })
-}
 
 #[cfg(test)]
 mod tests {

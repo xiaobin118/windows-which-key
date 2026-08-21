@@ -1,4 +1,5 @@
 pub mod types;
+pub mod shortcut;
 pub mod config;
 pub mod registry;
 pub mod hook;

@@ -101,15 +101,23 @@ pub struct ShortcutKey {
     pub key: Key,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BindingPriority { Essential, Recommended, Advanced }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BindingMetadata { pub category: String, pub priority: BindingPriority }
+
 #[derive(Debug, Clone)]
 pub struct Node {
     pub desc: Option<String>,
     pub children: HashMap<ShortcutKey, Node>,
     pub group_name: Option<String>,
+    pub metadata: Option<BindingMetadata>,
 }
 
 impl Node {
-    pub fn new(desc: Option<String>) -> Self { Self { desc, children: HashMap::new(), group_name: None } }
+    pub fn new(desc: Option<String>) -> Self { Self { desc, children: HashMap::new(), group_name: None, metadata: None } }
+    pub fn new_binding(desc: String, metadata: BindingMetadata) -> Self { Self { desc: Some(desc), children: HashMap::new(), group_name: None, metadata: Some(metadata) } }
     pub fn is_leaf(&self) -> bool { self.children.is_empty() }
 }
 
