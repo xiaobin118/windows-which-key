@@ -1,9 +1,10 @@
-pub mod types;
 pub mod config;
-pub mod registry;
 pub mod hook;
-pub mod state_machine;
-pub mod window_manager;
-pub mod webview_bridge;
 pub mod overlay_controller;
+pub mod registry;
+pub mod shortcut;
+pub mod state_machine;
 pub mod tray_icon;
+pub mod types;
+pub mod webview_bridge;
+pub mod window_manager;

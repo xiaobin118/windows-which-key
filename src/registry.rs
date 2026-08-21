@@ -1,5 +1,6 @@
-use std::collections::HashMap;
+use crate::shortcut::format_shortcut;
 use crate::types::*;
+use std::collections::HashMap;
 
 #[derive(Clone)]
 pub struct ShortcutRegistry {
@@ -22,7 +23,7 @@ impl ShortcutRegistry {
             .children
             .iter()
             .map(|(shortcut_key, node)| {
-                let key_str = format_shortcut_key(shortcut_key);
+                let key_str = format_shortcut(shortcut_key);
                 DisplayEntry {
                     key: key_str,
                     desc: node.desc.clone().unwrap_or_default(),
@@ -32,9 +33,7 @@ impl ShortcutRegistry {
             .collect();
 
         // Sort: groups first, then by key
-        entries.sort_by(|a, b| {
-            b.is_group.cmp(&a.is_group).then_with(|| a.key.cmp(&b.key))
-        });
+        entries.sort_by(|a, b| b.is_group.cmp(&a.is_group).then_with(|| a.key.cmp(&b.key)));
 
         entries
     }
@@ -53,49 +52,19 @@ impl ShortcutRegistry {
             Some(node) => {
                 if node.children.is_empty() {
                     ResolveResult::Leaf(DisplayEntry {
-                        key: format_shortcut_key(&key),
+                        key: format_shortcut(&key),
                         desc: node.desc.clone().unwrap_or_default(),
                         is_group: false,
                     })
                 } else {
-                    let mut breadcrumb: Vec<String> = path.iter()
-                        .map(|k| format_shortcut_key(k))
-                        .collect();
-                    breadcrumb.push(format_shortcut_key(&key));
+                    let mut breadcrumb: Vec<String> = path.iter().map(format_shortcut).collect();
+                    breadcrumb.push(format_shortcut(&key));
                     ResolveResult::Group(breadcrumb)
                 }
             }
             None => ResolveResult::NotFound,
         }
     }
-}
-
-fn format_shortcut_key(key: &ShortcutKey) -> String {
-    let mut parts = Vec::new();
-
-    if key.modifiers.contains(ModifierSet::CTRL) {
-        parts.push("C");
-    }
-    if key.modifiers.contains(ModifierSet::ALT) {
-        parts.push("A");
-    }
-    if key.modifiers.contains(ModifierSet::SHIFT) {
-        parts.push("S");
-    }
-    if key.modifiers.contains(ModifierSet::META) {
-        parts.push("M");
-    }
-
-    let key_char = match key.key.0 {
-        0x41..=0x5A => {
-            let ch = (b'a' + (key.key.0 - 0x41) as u8) as char;
-            ch.to_string()
-        }
-        _ => format!("VK_{:02X}", key.key.0),
-    };
-
-    parts.push(&key_char);
-    parts.join("-")
 }
 
 #[cfg(test)]
@@ -109,7 +78,8 @@ mod tests {
             modifiers: ModifierSet::CTRL,
             key: Key::C,
         };
-        root.children.insert(copy_key, Node::new(Some("Copy".to_string())));
+        root.children
+            .insert(copy_key, Node::new(Some("Copy".to_string())));
 
         let git_key = ShortcutKey {
             modifiers: ModifierSet::empty(),
@@ -121,13 +91,17 @@ mod tests {
             modifiers: ModifierSet::empty(),
             key: Key::S,
         };
-        git_node.children.insert(status_key, Node::new(Some("Git status".to_string())));
+        git_node
+            .children
+            .insert(status_key, Node::new(Some("Git status".to_string())));
 
         let commit_key = ShortcutKey {
             modifiers: ModifierSet::empty(),
             key: Key::C,
         };
-        git_node.children.insert(commit_key, Node::new(Some("Git commit".to_string())));
+        git_node
+            .children
+            .insert(commit_key, Node::new(Some("Git commit".to_string())));
 
         root.children.insert(git_key, git_node);
 
