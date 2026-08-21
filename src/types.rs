@@ -101,7 +101,7 @@ pub struct ShortcutKey {
     pub key: Key,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub enum BindingPriority { Essential, Recommended, Advanced }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -126,6 +126,8 @@ pub struct DisplayEntry {
     pub key: String,
     pub desc: String,
     pub is_group: bool,
+    pub category: String,
+    pub priority: BindingPriority,
 }
 
 #[derive(Debug)]

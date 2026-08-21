@@ -10,7 +10,7 @@ use webview2_com::Microsoft::Web::WebView2::Win32::{
 use webview2_com::{
     CreateCoreWebView2ControllerCompletedHandler, CreateCoreWebView2EnvironmentCompletedHandler,
 };
-use crate::types::UiCommand;
+use crate::types::{BindingPriority, UiCommand};
 
 pub const FRONTEND_HTML: &str = include_str!("frontend.html");
 
@@ -168,6 +168,8 @@ mod tests {
                 key: "C-c".to_string(),
                 desc: "Copy".to_string(),
                 is_group: false,
+                category: "Windows".to_string(),
+                priority: BindingPriority::Recommended,
             }],
             breadcrumb: vec![],
         };
