@@ -50,7 +50,8 @@ The approved implementation plan is in `docs/superpowers/plans/2026-08-21-applic
 - Foreground application resolution: complete for executable-name matching.
 - Show-all and modifier interactions: complete.
 - Built-in plugins: VS Code, Word, Excel, and PowerPoint.
-- Automated verification: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, and `cargo test --all-targets` passed offline with the E:\\rust toolchain homes.
+- Automated verification: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, and `cargo test --all-targets` passed offline with the E:\\rust toolchain homes (65 library tests and 4 binary tests).
+- Final review fixes include real modifier-aware sequence resolution, exact root-entry filtering, optional plugin descriptions, and a keyboard-hook install/uninstall handshake that reports failures and joins its worker thread.
 - Manual Windows application smoke: pending for VS Code, Office, and multi-monitor cases.
 
 ## Known Verification Gap
