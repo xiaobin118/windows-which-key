@@ -430,6 +430,19 @@ priority = "essential"
                 "missing {process}"
             );
         }
+
+        let powerpoint = report.snapshot.for_process("powerpnt.exe").unwrap();
+        for shortcut in ["F5", "S-F5"] {
+            let binding = powerpoint
+                .bindings
+                .iter()
+                .find(|binding| {
+                    binding_identity_from_binding(binding)
+                        == binding_identity(&[parse_shortcut(shortcut).unwrap()], false)
+                })
+                .unwrap();
+            assert_eq!(binding.metadata.priority, BindingPriority::Essential);
+        }
     }
 
     #[test]

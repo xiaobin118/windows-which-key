@@ -107,12 +107,12 @@ priority = "recommended"
 keys = ["F5"]
 description = "从第一张开始放映"
 category = "幻灯片放映"
-priority = "advanced"
+priority = "essential"
 [[bindings]]
 keys = ["Shift+F5"]
 description = "从当前幻灯片开始放映"
 category = "幻灯片放映"
-priority = "advanced"
+priority = "essential"
 [[bindings]]
 keys = ["Esc"]
 description = "退出放映"
