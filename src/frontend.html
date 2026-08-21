@@ -115,6 +115,7 @@
 </head>
 <body>
     <div class="container" id="container">
+        <div class="app-name" id="app-name"></div>
         <div class="breadcrumb" id="breadcrumb"></div>
         <div class="entries" id="entries"></div>
     </div>
@@ -123,21 +124,22 @@
         const container = document.getElementById('container');
         const breadcrumbEl = document.getElementById('breadcrumb');
         const entriesEl = document.getElementById('entries');
+        const appNameEl = document.getElementById('app-name');
 
-        function renderEntries(entries, breadcrumb) {
+        function renderEntries(entries, breadcrumb, clear = true) {
             // Update breadcrumb
             if (breadcrumb.length > 0) {
-                breadcrumbEl.innerHTML = breadcrumb.map(b => `<span>${b}</span>`).join(' › ');
+                breadcrumbEl.textContent = breadcrumb.join(' › ');
                 breadcrumbEl.style.display = 'block';
             } else {
                 breadcrumbEl.style.display = 'none';
             }
 
             // Clear and render entries
-            entriesEl.innerHTML = '';
+            if (clear) entriesEl.textContent = '';
             entries.forEach(entry => {
                 const div = document.createElement('div');
-                div.className = 'entry' + (entry.is_group ? ' group' : '');
+                div.className = 'entry ' + (entry.priority || 'recommended') + (entry.is_group ? ' group' : '');
 
                 const keySpan = document.createElement('span');
                 keySpan.className = 'key';
@@ -158,6 +160,29 @@
                 }
 
                 entriesEl.appendChild(div);
+            });
+        }
+
+        .app-name, .category { font-weight: 700; color: #fff; margin: 8px 0; }
+        .category { color: #9fc4ff; font-size: 12px; text-transform: uppercase; }
+        .entry.essential .desc { font-weight: 700; }
+        .entry.recommended .desc { font-weight: 500; }
+        .entry.advanced .desc { opacity: 0.72; }
+
+        function renderGroupedEntries(entries) {
+            entriesEl.textContent = '';
+            const categories = new Map();
+            entries.forEach(entry => {
+                const category = entry.category || 'Other';
+                if (!categories.has(category)) categories.set(category, []);
+                categories.get(category).push(entry);
+            });
+            categories.forEach((categoryEntries, category) => {
+                const heading = document.createElement('div');
+                heading.className = 'category';
+                heading.textContent = category;
+                entriesEl.appendChild(heading);
+                renderEntries(categoryEntries, [], false);
             });
         }
 
@@ -193,6 +218,12 @@
                     break;
                 case 'update':
                     renderEntries(data.entries || [], data.breadcrumb || []);
+                    break;
+                case 'showAll':
+                    appNameEl.textContent = data.appName || 'Windows';
+                    appNameEl.style.display = 'block';
+                    show();
+                    renderGroupedEntries(data.entries || []);
                     break;
                 case 'hide':
                     hide();

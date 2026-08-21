@@ -1,16 +1,14 @@
+use crate::types::UiCommand;
 use anyhow::{Context, Result};
 use serde_json::json;
-use windows::Win32::Foundation::{E_POINTER, HWND, RECT};
-use windows::Win32::System::Com::{CoInitializeEx, COINIT_APARTMENTTHREADED};
 use webview2_com::Microsoft::Web::WebView2::Win32::{
-    CreateCoreWebView2EnvironmentWithOptions,
-    ICoreWebView2,
-    ICoreWebView2Controller,
+    CreateCoreWebView2EnvironmentWithOptions, ICoreWebView2, ICoreWebView2Controller,
 };
 use webview2_com::{
     CreateCoreWebView2ControllerCompletedHandler, CreateCoreWebView2EnvironmentCompletedHandler,
 };
-use crate::types::UiCommand;
+use windows::Win32::Foundation::{E_POINTER, HWND, RECT};
+use windows::Win32::System::Com::{CoInitializeEx, COINIT_APARTMENTTHREADED};
 
 pub const FRONTEND_HTML: &str = include_str!("frontend.html");
 
@@ -37,12 +35,8 @@ impl WebView2Bridge {
                     }),
                     Box::new(move |result, environment| {
                         result?;
-                        tx.send(
-                            environment.ok_or_else(|| {
-                                windows::core::Error::from(E_POINTER)
-                            }),
-                        )
-                        .expect("发送环境结果失败");
+                        tx.send(environment.ok_or_else(|| windows::core::Error::from(E_POINTER)))
+                            .expect("发送环境结果失败");
                         Ok(())
                     }),
                 )
@@ -64,12 +58,8 @@ impl WebView2Bridge {
                     }),
                     Box::new(move |result, controller| {
                         result?;
-                        tx.send(
-                            controller.ok_or_else(|| {
-                                windows::core::Error::from(E_POINTER)
-                            }),
-                        )
-                        .expect("发送 controller 结果失败");
+                        tx.send(controller.ok_or_else(|| windows::core::Error::from(E_POINTER)))
+                            .expect("发送 controller 结果失败");
                         Ok(())
                     }),
                 )
@@ -80,13 +70,14 @@ impl WebView2Bridge {
             };
 
             // ── 设置 controller 尺寸和可见性 ──
-            controller.SetBounds(RECT {
-                left: 0,
-                top: 0,
-                right: 400,
-                bottom: 300,
-            })
-            .context("设置 WebView2 bounds 失败")?;
+            controller
+                .SetBounds(RECT {
+                    left: 0,
+                    top: 0,
+                    right: 400,
+                    bottom: 300,
+                })
+                .context("设置 WebView2 bounds 失败")?;
             controller
                 .SetIsVisible(true)
                 .context("设置 WebView2 可见性失败")?;
@@ -121,36 +112,8 @@ impl WebView2Bridge {
 
     /// 向前端推送 UI 命令（JSON 序列化后通过 postMessage 注入 JS）
     pub fn send_command(&self, cmd: &UiCommand) -> Result<()> {
-        let json_msg = match cmd {
-            UiCommand::Show { entries, breadcrumb, .. } => {
-                json!({
-                    "type": "show",
-                    "entries": entries,
-                    "breadcrumb": breadcrumb
-                })
-            }
-            UiCommand::UpdateEntries { entries, breadcrumb } => {
-                json!({
-                    "type": "update",
-                    "entries": entries,
-                    "breadcrumb": breadcrumb
-                })
-            }
-            UiCommand::ShowAll { app_name, entries } => {
-                json!({
-                    "type": "showAll",
-                    "appName": app_name,
-                    "entries": entries
-                })
-            }
-            UiCommand::Hide => {
-                json!({
-                    "type": "hide"
-                })
-            }
-        };
-
-        let js_code = format!("window.postMessage({}, '*');", json_msg.to_string());
+        let json_msg = command_json(cmd);
+        let js_code = format!("window.postMessage({json_msg}, '*');");
         let js_str: windows::core::HSTRING = js_code.into();
 
         unsafe {
@@ -159,6 +122,34 @@ impl WebView2Bridge {
                 .context("向前端推送命令失败")?;
         }
         Ok(())
+    }
+}
+
+fn command_json(cmd: &UiCommand) -> serde_json::Value {
+    match cmd {
+        UiCommand::Show {
+            entries,
+            breadcrumb,
+            ..
+        } => json!({
+            "type": "show",
+            "entries": entries,
+            "breadcrumb": breadcrumb
+        }),
+        UiCommand::UpdateEntries {
+            entries,
+            breadcrumb,
+        } => json!({
+            "type": "update",
+            "entries": entries,
+            "breadcrumb": breadcrumb
+        }),
+        UiCommand::ShowAll { app_name, entries } => json!({
+            "type": "showAll",
+            "appName": app_name,
+            "entries": entries
+        }),
+        UiCommand::Hide => json!({ "type": "hide" }),
     }
 }
 
@@ -181,19 +172,30 @@ mod tests {
             breadcrumb: vec![],
         };
 
-        let json_str = match &cmd {
-            UiCommand::Show { entries, breadcrumb, .. } => {
-                json!({
-                    "type": "show",
-                    "entries": entries,
-                    "breadcrumb": breadcrumb
-                })
-                .to_string()
-            }
-            _ => unreachable!(),
-        };
+        let json_str = command_json(&cmd).to_string();
 
         assert!(json_str.contains("show"));
         assert!(json_str.contains("Copy"));
+    }
+
+    #[test]
+    fn show_all_json_contains_app_category_and_priority() {
+        let cmd = UiCommand::ShowAll {
+            app_name: "Visual Studio Code".to_string(),
+            entries: vec![DisplayEntry {
+                key: "F2".to_string(),
+                desc: "Rename Symbol".to_string(),
+                is_group: false,
+                category: "Editing".to_string(),
+                priority: BindingPriority::Essential,
+            }],
+        };
+
+        let value = command_json(&cmd);
+
+        assert_eq!(value["type"], "showAll");
+        assert_eq!(value["appName"], "Visual Studio Code");
+        assert_eq!(value["entries"][0]["category"], "Editing");
+        assert_eq!(value["entries"][0]["priority"], "essential");
     }
 }

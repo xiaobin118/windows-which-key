@@ -8,6 +8,8 @@ use serde::Deserialize;
 use crate::shortcut::{format_shortcut, parse_shortcut};
 use crate::types::{BindingMetadata, BindingPriority, ShortcutKey};
 
+pub const BUILTIN_PLUGINS: &[(&str, &str)] = &[];
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PluginOrigin {
     BuiltIn,

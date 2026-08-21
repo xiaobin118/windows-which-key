@@ -19,24 +19,22 @@ pub struct TrayIcon {
 
 impl TrayIcon {
     pub fn new(hwnd: HWND) -> Result<Self> {
-        Ok(TrayIcon {
-            hwnd,
-            icon_id: 1,
-        })
+        Ok(TrayIcon { hwnd, icon_id: 1 })
     }
 
     pub fn show(&self) -> Result<()> {
         unsafe {
-            let mut icon_data = NOTIFYICONDATAW::default();
-            icon_data.cbSize = std::mem::size_of::<NOTIFYICONDATAW>() as u32;
-            icon_data.hWnd = self.hwnd;
-            icon_data.uID = self.icon_id;
-            icon_data.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
-            icon_data.uCallbackMessage = WM_USER + 1;
+            let mut icon_data = NOTIFYICONDATAW {
+                cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
+                hWnd: self.hwnd,
+                uID: self.icon_id,
+                uFlags: NIF_ICON | NIF_MESSAGE | NIF_TIP,
+                uCallbackMessage: WM_USER + 1,
+                ..Default::default()
+            };
 
             // Use default application icon
-            let icon = LoadIconW(None, IDI_APPLICATION)
-                .context("Failed to load icon")?;
+            let icon = LoadIconW(None, IDI_APPLICATION).context("Failed to load icon")?;
             icon_data.hIcon = icon;
 
             // Set tooltip
@@ -57,10 +55,12 @@ impl TrayIcon {
 
     pub fn hide(&self) -> Result<()> {
         unsafe {
-            let mut icon_data = NOTIFYICONDATAW::default();
-            icon_data.cbSize = std::mem::size_of::<NOTIFYICONDATAW>() as u32;
-            icon_data.hWnd = self.hwnd;
-            icon_data.uID = self.icon_id;
+            let icon_data = NOTIFYICONDATAW {
+                cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
+                hWnd: self.hwnd,
+                uID: self.icon_id,
+                ..Default::default()
+            };
 
             if !Shell_NotifyIconW(NIM_DELETE, &icon_data).as_bool() {
                 anyhow::bail!("Failed to remove tray icon");
@@ -75,9 +75,7 @@ impl TrayIcon {
     pub fn handle_message(&self, msg: u32, lparam: LPARAM) -> Option<TrayCommand> {
         if msg == WM_USER + 1 {
             match lparam.0 as u32 {
-                WM_RBUTTONUP => {
-                    self.show_context_menu()
-                }
+                WM_RBUTTONUP => self.show_context_menu(),
                 _ => None,
             }
         } else {
@@ -129,8 +127,6 @@ impl Drop for TrayIcon {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_tray_icon_creation() {
         // This test would require a valid HWND
