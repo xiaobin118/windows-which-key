@@ -63,7 +63,7 @@ impl ForegroundAppProvider for Win32ForegroundAppProvider {
 
 pub fn normalize_executable_path(path: &str) -> Option<String> {
     let executable_name = path.rsplit(['\\', '/']).next()?.trim();
-    (!executable_name.is_empty()).then(|| executable_name.to_ascii_lowercase())
+    (!executable_name.is_empty()).then(|| executable_name.to_lowercase())
 }
 
 #[cfg(test)]
@@ -77,6 +77,14 @@ mod tests {
             Some("code.exe".to_string())
         );
         assert_eq!(normalize_executable_path(""), None);
+    }
+
+    #[test]
+    fn normalizes_unicode_executable_names_case_insensitively() {
+        assert_eq!(
+            normalize_executable_path(r"C:\\Apps\\ÄPP.EXE"),
+            Some("äpp.exe".to_string())
+        );
     }
 
     #[test]

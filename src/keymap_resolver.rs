@@ -58,7 +58,7 @@ impl KeymapResolver {
 fn normalize_process_name(process: &str) -> Option<String> {
     let process = process.trim();
     let executable = process.rsplit(['\\', '/']).next()?.trim();
-    (!executable.is_empty()).then(|| executable.to_ascii_lowercase())
+    (!executable.is_empty()).then(|| executable.to_lowercase())
 }
 
 #[cfg(test)]
@@ -94,10 +94,26 @@ category = "Navigation"
 priority = "essential"
 "#;
 
+    const UNICODE_APP: &str = r#"
+schema_version = 1
+id = "unicode-app"
+name = "Unicode App"
+processes = ["Äpp.exe"]
+
+[[bindings]]
+keys = ["C-u"]
+description = "Unicode command"
+category = "Navigation"
+priority = "essential"
+"#;
+
     fn fixture_resolver() -> KeymapResolver {
-        let plugins = PluginSnapshot::load(&[("vscode.toml", VSCODE)], Path::new("missing"))
-            .unwrap()
-            .snapshot;
+        let plugins = PluginSnapshot::load(
+            &[("vscode.toml", VSCODE), ("unicode-app.toml", UNICODE_APP)],
+            Path::new("missing"),
+        )
+        .unwrap()
+        .snapshot;
         KeymapResolver::new(crate::config::parse_toml(GLOBAL).unwrap(), plugins)
     }
 
@@ -130,6 +146,18 @@ priority = "essential"
             .is_err());
 
         assert!(Arc::ptr_eq(&before, &service.current()));
+    }
+
+    #[test]
+    fn normalizes_unicode_process_names_case_insensitively() {
+        assert_eq!(
+            super::normalize_process_name("ÄPP.EXE"),
+            Some("äpp.exe".to_string())
+        );
+
+        let resolved = fixture_resolver().resolve(Some("ÄPP.EXE"));
+        assert_eq!(resolved.app_name, "Unicode App");
+        assert_eq!(leaf_desc(&resolved.registry, "C-u"), "Unicode command");
     }
 
     fn leaf_desc(registry: &ShortcutRegistry, shortcut: &str) -> String {
