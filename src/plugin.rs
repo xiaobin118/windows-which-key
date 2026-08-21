@@ -153,7 +153,7 @@ impl PluginSnapshot {
                 Vec::new()
             }
         };
-        user_paths.sort_by_key(|path| path.to_string_lossy().to_ascii_lowercase());
+        sort_plugin_paths(&mut user_paths);
 
         let mut user_plugins = Vec::new();
         for path in user_paths {
@@ -209,6 +209,15 @@ fn has_toml_extension(path: &Path) -> bool {
     path.extension()
         .and_then(|extension| extension.to_str())
         .is_some_and(|extension| extension.eq_ignore_ascii_case("toml"))
+}
+
+fn sort_plugin_paths(paths: &mut [PathBuf]) {
+    paths.sort_by(|left, right| {
+        left.to_string_lossy()
+            .to_ascii_lowercase()
+            .cmp(&right.to_string_lossy().to_ascii_lowercase())
+            .then_with(|| left.cmp(right))
+    });
 }
 
 fn merge_origin_plugins(
@@ -432,6 +441,18 @@ priority = "essential"
             ("two.toml", PLUGIN_TWO_SAME_PROCESS),
         ];
         assert!(PluginSnapshot::load(&builtins, Path::new("missing-user-dir")).is_err());
+    }
+
+    #[test]
+    fn plugin_path_sort_tie_breaks_case_folded_names_by_original_path() {
+        let mut paths = vec![PathBuf::from("plugin.toml"), PathBuf::from("Plugin.toml")];
+
+        sort_plugin_paths(&mut paths);
+
+        assert_eq!(
+            paths,
+            vec![PathBuf::from("Plugin.toml"), PathBuf::from("plugin.toml")]
+        );
     }
 
     #[test]
