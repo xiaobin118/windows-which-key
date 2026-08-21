@@ -76,6 +76,10 @@ impl StateMachine {
     fn handle_modifier_up(&mut self, modifier: Modifier) -> Option<UiCommand> {
         self.pressed_modifiers.remove(&modifier);
 
+        if matches!(self.state, State::Idle) {
+            return None;
+        }
+
         if matches!(self.state, State::BrowsingAll) {
             return None;
         }
@@ -338,10 +342,27 @@ mod tests {
             sm.handle_event(KeyEvent::KeyDown(Key::F)),
             Some(UiCommand::Hide)
         ));
+        assert!(sm
+            .handle_event(KeyEvent::ModifierUp(Modifier::Ctrl))
+            .is_none());
+    }
+
+    #[test]
+    fn modifier_release_after_leaf_completion_does_not_hide_twice() {
+        let mut sm = sequence_state_machine();
+        sm.show_immediately_for_test(ModifierSet::CTRL);
+
         assert!(matches!(
-            sm.handle_event(KeyEvent::ModifierUp(Modifier::Ctrl)),
+            sm.handle_event(KeyEvent::KeyDown(Key::K)),
+            Some(UiCommand::UpdateEntries { .. })
+        ));
+        assert!(matches!(
+            sm.handle_event(KeyEvent::KeyDown(Key::F)),
             Some(UiCommand::Hide)
         ));
+        assert!(sm
+            .handle_event(KeyEvent::ModifierUp(Modifier::Ctrl))
+            .is_none());
     }
 
     #[test]

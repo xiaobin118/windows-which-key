@@ -1,9 +1,10 @@
 use crate::types::*;
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
+use std::thread::JoinHandle;
 use windows::Win32::Foundation::{LPARAM, LRESULT, WPARAM};
 use windows::Win32::UI::WindowsAndMessaging::*;
 
@@ -92,6 +93,17 @@ impl Default for HookDecisionState {
 
 pub struct KeyboardHook {
     active: Arc<AtomicBool>,
+    hook_thread: std::sync::Mutex<Option<HookThread>>,
+}
+
+struct HookThread {
+    thread_id: u32,
+    handle: JoinHandle<()>,
+}
+
+#[derive(Debug)]
+struct HookThreadControl {
+    thread_id: u32,
 }
 
 impl KeyboardHook {
@@ -101,15 +113,25 @@ impl KeyboardHook {
         SHOW_ALL_OPEN.store(false, Ordering::SeqCst);
         Ok(KeyboardHook {
             active: Arc::new(AtomicBool::new(false)),
+            hook_thread: std::sync::Mutex::new(None),
         })
     }
 
     pub fn install(&self) -> Result<()> {
-        let active = self.active.clone();
-        let (ready_sender, ready_receiver) = std::sync::mpsc::channel();
+        if self.hook_thread.lock().unwrap().is_some() {
+            bail!("Keyboard hook is already installed");
+        }
 
-        std::thread::spawn(move || {
+        let active = self.active.clone();
+        let (ready_sender, ready_receiver) =
+            std::sync::mpsc::channel::<Result<HookThreadControl>>();
+
+        let handle = std::thread::spawn(move || {
             unsafe {
+                let thread_id = windows::Win32::System::Threading::GetCurrentThreadId();
+                let mut msg = MSG::default();
+                let _ = PeekMessageW(&mut msg, None, 0, 0, PM_NOREMOVE);
+
                 let hook = match SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_proc), None, 0)
                     .context("Failed to install keyboard hook")
                 {
@@ -123,31 +145,61 @@ impl KeyboardHook {
                 *HOOK_HANDLE.lock().unwrap() = Some(HookHandle(hook));
                 HOOK_ACTIVE.store(true, Ordering::SeqCst);
                 active.store(true, Ordering::SeqCst);
-                let _ = ready_sender.send(Ok(()));
+                let _ = ready_sender.send(Ok(HookThreadControl { thread_id }));
 
                 // Message loop - required for hook to work
-                let mut msg = MSG::default();
                 while GetMessageW(&mut msg, None, 0, 0).into() {
                     let _ = TranslateMessage(&msg);
                     DispatchMessageW(&msg);
                 }
+
+                HOOK_ACTIVE.store(false, Ordering::SeqCst);
+                active.store(false, Ordering::SeqCst);
+                if let Some(handle) = HOOK_HANDLE.lock().unwrap().take() {
+                    let _ = UnhookWindowsHookEx(handle.0);
+                }
             }
         });
 
-        wait_for_hook_installation(ready_receiver)
+        match wait_for_hook_installation(ready_receiver) {
+            Ok(control) => {
+                *self.hook_thread.lock().unwrap() = Some(HookThread {
+                    thread_id: control.thread_id,
+                    handle,
+                });
+                Ok(())
+            }
+            Err(error) => {
+                join_hook_thread(handle)?;
+                Err(error)
+            }
+        }
     }
 
     pub fn uninstall(&self) -> Result<()> {
         HOOK_ACTIVE.store(false, Ordering::SeqCst);
         self.active.store(false, Ordering::SeqCst);
 
-        if let Some(handle) = HOOK_HANDLE.lock().unwrap().take() {
-            unsafe {
-                UnhookWindowsHookEx(handle.0).context("Failed to uninstall hook")?;
+        let hook_thread = self.hook_thread.lock().unwrap().take();
+
+        let unhook_result = if let Some(handle) = HOOK_HANDLE.lock().unwrap().take() {
+            unsafe { UnhookWindowsHookEx(handle.0).context("Failed to uninstall hook") }
+        } else {
+            Ok(())
+        };
+
+        if let Some(hook_thread) = hook_thread {
+            if let Err(error) = unsafe {
+                PostThreadMessageW(hook_thread.thread_id, WM_QUIT, WPARAM(0), LPARAM(0))
+                    .context("Failed to stop keyboard hook thread")
+            } {
+                *self.hook_thread.lock().unwrap() = Some(hook_thread);
+                return Err(error);
             }
+            join_hook_thread(hook_thread.handle)?;
         }
 
-        Ok(())
+        unhook_result
     }
 
     pub fn set_show_all_open(&self, open: bool) {
@@ -159,11 +211,18 @@ impl KeyboardHook {
     }
 }
 
-fn wait_for_hook_installation(receiver: Receiver<Result<()>>) -> Result<()> {
+fn wait_for_hook_installation(
+    receiver: Receiver<Result<HookThreadControl>>,
+) -> Result<HookThreadControl> {
     receiver
         .recv()
-        .context("Keyboard hook installation thread exited before reporting readiness")??;
-    Ok(())
+        .context("Keyboard hook installation thread exited before reporting readiness")?
+}
+
+fn join_hook_thread(handle: JoinHandle<()>) -> Result<()> {
+    handle
+        .join()
+        .map_err(|_| anyhow::anyhow!("Keyboard hook thread panicked"))
 }
 
 unsafe extern "system" fn keyboard_proc(n_code: i32, w_param: WPARAM, l_param: LPARAM) -> LRESULT {
@@ -345,6 +404,17 @@ mod tests {
         // Uninstall hook
         hook.uninstall().unwrap();
         assert!(!hook.active.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn uninstall_joins_the_hook_message_thread() {
+        let (exit_sender, exit_receiver) = mpsc::channel();
+        let handle = thread::spawn(move || exit_receiver.recv().unwrap());
+
+        exit_sender.send(()).unwrap();
+        join_hook_thread(handle).unwrap();
+
+        // `JoinHandle` has been consumed, so the worker cannot outlive this lifecycle step.
     }
 
     #[test]
