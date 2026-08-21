@@ -1,4 +1,7 @@
-use std::path::PathBuf;
+use std::collections::HashMap;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
 use serde::Deserialize;
@@ -35,6 +38,94 @@ pub struct PluginDefinition {
     pub disabled: bool,
     pub bindings: Vec<PluginBinding>,
     pub origin: PluginOrigin,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PluginWarning {
+    pub path: PathBuf,
+    pub message: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct PluginSnapshot {
+    plugins: Vec<PluginDefinition>,
+    process_index: HashMap<String, usize>,
+}
+
+#[derive(Debug, Clone)]
+pub struct PluginLoadReport {
+    pub snapshot: Arc<PluginSnapshot>,
+    pub warnings: Vec<PluginWarning>,
+}
+
+impl PluginSnapshot {
+    pub fn load(built_ins: &[(&str, &str)], user_dir: &Path) -> Result<PluginLoadReport> {
+        let mut builtins = Vec::with_capacity(built_ins.len());
+        for (name, source) in built_ins {
+            builtins.push(parse_plugin_toml(source, PluginOrigin::BuiltIn)
+                .with_context(|| format!("invalid built-in plugin: {name}"))?);
+        }
+        validate_origin_conflicts(&builtins)?;
+
+        let mut user_files = fs::read_dir(user_dir)
+            .with_context(|| format!("failed to read user plugin directory: {}", user_dir.display()))?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        user_files.retain(|entry| entry.path().extension().is_some_and(|ext| ext.eq_ignore_ascii_case("toml")));
+        user_files.sort_by_key(|entry| entry.file_name().to_string_lossy().to_ascii_lowercase());
+
+        let mut warnings = Vec::new();
+        let mut users = Vec::new();
+        for entry in user_files {
+            let path = entry.path();
+            match fs::read_to_string(&path).and_then(|source| {
+                parse_plugin_toml(&source, PluginOrigin::User(path.clone())).map_err(|error| std::io::Error::other(error.to_string()))
+            }) {
+                Ok(plugin) => users.push(plugin),
+                Err(error) => warnings.push(PluginWarning { path, message: error.to_string() }),
+            }
+        }
+        validate_origin_conflicts(&users)?;
+        let plugins = merge_plugins(builtins, users);
+        let mut process_index = HashMap::new();
+        for (index, plugin) in plugins.iter().enumerate() {
+            if !plugin.disabled {
+                for process in &plugin.processes { process_index.insert(process.clone(), index); }
+            }
+        }
+        Ok(PluginLoadReport { snapshot: Arc::new(Self { plugins, process_index }), warnings })
+    }
+
+    pub fn for_process(&self, normalized_exe: &str) -> Option<&PluginDefinition> {
+        self.process_index.get(&normalized_exe.to_ascii_lowercase()).map(|index| &self.plugins[*index])
+    }
+}
+
+fn validate_origin_conflicts(plugins: &[PluginDefinition]) -> Result<()> {
+    let mut claims = HashMap::<&str, &str>::new();
+    for plugin in plugins {
+        for process in &plugin.processes {
+            if let Some(previous) = claims.insert(process, &plugin.id) {
+                if previous != &plugin.id { bail!("conflicting plugin IDs {previous} and {} claim process {process}", plugin.id); }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn merge_plugins(builtins: Vec<PluginDefinition>, users: Vec<PluginDefinition>) -> Vec<PluginDefinition> {
+    let mut merged = builtins;
+    for user in users {
+        if let Some(existing) = merged.iter_mut().find(|plugin| plugin.id == user.id) {
+            let mut bindings = existing.bindings.clone();
+            for binding in user.bindings {
+                if let Some(index) = bindings.iter().position(|old| same_binding_keys(&old.keys, &binding.keys)) { bindings[index] = binding; } else { bindings.push(binding); }
+            }
+            *existing = PluginDefinition { bindings, ..user };
+        } else {
+            merged.push(user);
+        }
+    }
+    merged
 }
 
 #[derive(Deserialize)]
@@ -119,6 +210,8 @@ fn same_binding_keys(left: &BindingKeys, right: &BindingKeys) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use tempfile::tempdir;
 
     const VALID: &str = r#"
 schema_version = 1
@@ -179,5 +272,60 @@ sequence = true
         assert!(parse_plugin_toml(&empty, PluginOrigin::BuiltIn).is_err());
         let malformed = VALID.replace("keys = [\"C-S-p\", \"F1\"]", "keys = [\"Ctrl-\"]");
         assert!(parse_plugin_toml(&malformed, PluginOrigin::BuiltIn).is_err());
+    }
+
+    #[test]
+    fn user_plugin_overrides_binding_and_retains_unmentioned_builtin_binding() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("override.toml"), r#"
+schema_version = 1
+id = "VSCode"
+name = "User VS Code"
+description = "Override"
+processes = ["code.exe"]
+[[bindings]]
+keys = ["C-S-p", "F1"]
+description = "User command palette"
+category = "User"
+priority = "recommended"
+"#).unwrap();
+        let report = PluginSnapshot::load(&[("builtin.toml", VALID)], dir.path()).unwrap();
+        let plugin = report.snapshot.for_process("code.exe").unwrap();
+        assert_eq!(plugin.name, "User VS Code");
+        assert_eq!(plugin.bindings.len(), 2);
+        assert_eq!(plugin.bindings[0].description, "User command palette");
+    }
+
+    #[test]
+    fn disabled_user_plugin_removes_builtin_from_process_index() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("disable.toml"), r#"
+schema_version = 1
+id = "vscode"
+name = "Disabled"
+description = "Disabled"
+processes = ["code.exe"]
+disabled = true
+"#).unwrap();
+        let report = PluginSnapshot::load(&[("builtin.toml", VALID)], dir.path()).unwrap();
+        assert!(report.snapshot.for_process("code.exe").is_none());
+    }
+
+    #[test]
+    fn invalid_user_plugin_is_warning_and_builtin_remains() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("bad.toml"), "not valid toml = [").unwrap();
+        let report = PluginSnapshot::load(&[("builtin.toml", VALID)], dir.path()).unwrap();
+        assert_eq!(report.warnings.len(), 1);
+        assert!(report.snapshot.for_process("code.exe").is_some());
+    }
+
+    #[test]
+    fn conflicting_ids_for_process_in_same_origin_are_fatal() {
+        let first = VALID.replace("id = \"VSCode\"", "id = \"one\"");
+        let second = VALID.replace("id = \"VSCode\"", "id = \"two\"");
+        let error = PluginSnapshot::load(&[("one.toml", &first), ("two.toml", &second)], tempdir().unwrap().path()).unwrap_err();
+        let message = error.to_string();
+        assert!(message.contains("one") && message.contains("two") && message.contains("code.exe"));
     }
 }
