@@ -165,6 +165,10 @@ mod tests {
         let copy = entries.iter().find(|e| e.desc == "Copy").unwrap();
         assert_eq!(copy.key, "C-c");
         assert!(!copy.is_group);
+        let copy_node = registry.globals.children.values().find(|node| node.desc.as_deref() == Some("Copy")).unwrap();
+        let metadata = copy_node.metadata.as_ref().unwrap();
+        assert_eq!(metadata.category, "Windows");
+        assert_eq!(metadata.priority, BindingPriority::Recommended);
     }
 
     #[test]

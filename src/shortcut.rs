@@ -6,6 +6,23 @@ pub fn parse_shortcut(input: &str) -> Result<ShortcutKey> {
     if input == "-" {
         return Ok(ShortcutKey { modifiers: ModifierSet::empty(), key: Key(VK_OEM_MINUS.0 as u32) });
     }
+    if input.ends_with("--") {
+        let modifier_part = &input[..input.len() - 2];
+        if modifier_part.is_empty() {
+            bail!("shortcut must include a key: {input}");
+        }
+        let mut modifiers = ModifierSet::empty();
+        for part in modifier_part.split('-') {
+            match part.to_ascii_lowercase().as_str() {
+                "c" | "ctrl" | "control" => modifiers |= ModifierSet::CTRL,
+                "a" | "alt" => modifiers |= ModifierSet::ALT,
+                "s" | "shift" => modifiers |= ModifierSet::SHIFT,
+                "m" | "meta" | "win" => modifiers |= ModifierSet::META,
+                _ => bail!("unknown modifier: {part}"),
+            }
+        }
+        return Ok(ShortcutKey { modifiers, key: Key(VK_OEM_MINUS.0 as u32) });
+    }
     let mut parts: Vec<&str> = input.split('-').collect();
     if parts.len() > 1 && parts.last() == Some(&"") {
         parts.pop();
@@ -69,34 +86,34 @@ fn parse_key(value: &str) -> Result<Key> {
 }
 
 pub fn format_shortcut(key: &ShortcutKey) -> String {
-    let mut parts = Vec::new();
+    let mut parts: Vec<String> = Vec::new();
     for (flag, name) in [(ModifierSet::CTRL, "C"), (ModifierSet::ALT, "A"), (ModifierSet::SHIFT, "S"), (ModifierSet::META, "M")] {
-        if key.modifiers.contains(flag) { parts.push(name); }
+        if key.modifiers.contains(flag) { parts.push(name.to_string()); }
     }
     parts.push(match key.key.0 {
-        0x41..=0x5a => Box::leak(((b'a' + (key.key.0 - 0x41) as u8) as char).to_string().into_boxed_str()),
-        0x30..=0x39 => Box::leak((key.key.0 as u8 as char).to_string().into_boxed_str()),
-        v if v == VK_OEM_2.0 as u32 => "/",
-        v if v == VK_OEM_3.0 as u32 => "`",
-        v if v == VK_OEM_PLUS.0 as u32 => "+",
-        v if v == VK_OEM_MINUS.0 as u32 => "-",
-        v if v == VK_OEM_1.0 as u32 => ";",
-        v if v == VK_BACK.0 as u32 => "Backspace",
-        v if v == VK_DELETE.0 as u32 => "Delete",
-        v if v == VK_RETURN.0 as u32 => "Enter",
-        v if v == VK_ESCAPE.0 as u32 => "Esc",
-        v if v == VK_SPACE.0 as u32 => "Space",
-        v if v == VK_TAB.0 as u32 => "Tab",
-        v if v == VK_HOME.0 as u32 => "Home",
-        v if v == VK_END.0 as u32 => "End",
-        v if v == VK_PRIOR.0 as u32 => "PageUp",
-        v if v == VK_NEXT.0 as u32 => "PageDown",
-        v if v == VK_LEFT.0 as u32 => "Left",
-        v if v == VK_RIGHT.0 as u32 => "Right",
-        v if v == VK_UP.0 as u32 => "Up",
-        v if v == VK_DOWN.0 as u32 => "Down",
-        v if (VK_F1.0 as u32..=VK_F24.0 as u32).contains(&v) => Box::leak(format!("F{}", v - VK_F1.0 as u32 + 1).into_boxed_str()),
-        v => Box::leak(format!("VK_{v:02X}").into_boxed_str()),
+        0x41..=0x5a => ((b'a' + (key.key.0 - 0x41) as u8) as char).to_string(),
+        0x30..=0x39 => (key.key.0 as u8 as char).to_string(),
+        v if v == VK_OEM_2.0 as u32 => "/".to_string(),
+        v if v == VK_OEM_3.0 as u32 => "`".to_string(),
+        v if v == VK_OEM_PLUS.0 as u32 => "+".to_string(),
+        v if v == VK_OEM_MINUS.0 as u32 => "-".to_string(),
+        v if v == VK_OEM_1.0 as u32 => ";".to_string(),
+        v if v == VK_BACK.0 as u32 => "Backspace".to_string(),
+        v if v == VK_DELETE.0 as u32 => "Delete".to_string(),
+        v if v == VK_RETURN.0 as u32 => "Enter".to_string(),
+        v if v == VK_ESCAPE.0 as u32 => "Esc".to_string(),
+        v if v == VK_SPACE.0 as u32 => "Space".to_string(),
+        v if v == VK_TAB.0 as u32 => "Tab".to_string(),
+        v if v == VK_HOME.0 as u32 => "Home".to_string(),
+        v if v == VK_END.0 as u32 => "End".to_string(),
+        v if v == VK_PRIOR.0 as u32 => "PageUp".to_string(),
+        v if v == VK_NEXT.0 as u32 => "PageDown".to_string(),
+        v if v == VK_LEFT.0 as u32 => "Left".to_string(),
+        v if v == VK_RIGHT.0 as u32 => "Right".to_string(),
+        v if v == VK_UP.0 as u32 => "Up".to_string(),
+        v if v == VK_DOWN.0 as u32 => "Down".to_string(),
+        v if (VK_F1.0 as u32..=VK_F24.0 as u32).contains(&v) => format!("F{}", v - VK_F1.0 as u32 + 1),
+        v => format!("VK_{v:02X}"),
     });
     parts.join("-")
 }
@@ -108,6 +125,17 @@ mod tests {
         for (input, expected) in [("Ctrl-Shift-P", "C-S-p"), ("F12", "F12"), ("PageDown", "PageDown"), ("/", "/"), ("`", "`"), ("Ctrl-+", "C-+")] {
             assert_eq!(format_shortcut(&parse_shortcut(input).unwrap()), expected);
         }
+    }
+    #[test] fn modified_hyphen_round_trips() {
+        assert_eq!(format_shortcut(&parse_shortcut("Ctrl--").unwrap()), "C--");
+    }
+    #[test] fn named_oem_and_function_keys_round_trip() {
+        for key in ["Left", "Right", "Up", "Down", "Backspace", "Delete", "Enter", "Esc", "Space", "Tab", "Home", "End", "PageUp", ";", "F1", "F24"] {
+            assert_eq!(format_shortcut(&parse_shortcut(key).unwrap()), key);
+        }
+    }
+    #[test] fn modifier_aliases_are_supported() {
+        assert_eq!(format_shortcut(&parse_shortcut("control-alt-shift-win-a").unwrap()), "C-A-S-M-a");
     }
     #[test] fn rejects_incomplete_shortcut() { assert!(parse_shortcut("Ctrl-").is_err()); }
 }
