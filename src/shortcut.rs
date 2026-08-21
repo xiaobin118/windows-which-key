@@ -1,31 +1,3 @@
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parses_and_canonicalizes_named_and_symbol_keys() {
-        for (input, expected) in [
-            ("Ctrl-Shift-P", "C-S-p"),
-            ("F12", "F12"),
-            ("PageDown", "PageDown"),
-            ("/", "/"),
-            ("`", "`"),
-            ("Ctrl-+", "C-+"),
-            ("Alt+=", "A-+"),
-            ("Ctrl+Shift++", "C-S-+"),
-            ("Ctrl+Shift+<", "C-S-<"),
-            ("Ctrl+Shift+>", "C-S->"),
-        ] {
-            let key = parse_shortcut(input).unwrap();
-            assert_eq!(format_shortcut(&key), expected);
-        }
-    }
-
-    #[test]
-    fn rejects_modifier_without_a_key() {
-        assert!(parse_shortcut("Ctrl-").is_err());
-    }
-}
 use anyhow::{bail, Result};
 
 use crate::types::{Key, ModifierSet, ShortcutKey};
@@ -193,5 +165,34 @@ fn format_key(key: Key) -> String {
         VK_DOWN => "Down".to_string(),
         VK_F1..=0x87 => format!("F{}", key.vk_code() - VK_F1 + 1),
         vk => format!("VK_{vk:02X}"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_and_canonicalizes_named_and_symbol_keys() {
+        for (input, expected) in [
+            ("Ctrl-Shift-P", "C-S-p"),
+            ("F12", "F12"),
+            ("PageDown", "PageDown"),
+            ("/", "/"),
+            ("`", "`"),
+            ("Ctrl-+", "C-+"),
+            ("Alt+=", "A-+"),
+            ("Ctrl+Shift++", "C-S-+"),
+            ("Ctrl+Shift+<", "C-S-<"),
+            ("Ctrl+Shift+>", "C-S->"),
+        ] {
+            let key = parse_shortcut(input).unwrap();
+            assert_eq!(format_shortcut(&key), expected);
+        }
+    }
+
+    #[test]
+    fn rejects_modifier_without_a_key() {
+        assert!(parse_shortcut("Ctrl-").is_err());
     }
 }

@@ -2,8 +2,7 @@ use anyhow::{Context, Result};
 use windows::core::PWSTR;
 use windows::Win32::Foundation::{CloseHandle, HANDLE};
 use windows::Win32::System::Threading::{
-    OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32,
-    PROCESS_QUERY_LIMITED_INFORMATION,
+    OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
 };
 use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
 
@@ -37,7 +36,9 @@ impl ForegroundAppProvider for Win32ForegroundAppProvider {
 
             let mut process_id = 0;
             if GetWindowThreadProcessId(foreground_window, Some(&mut process_id)) == 0 {
-                return Err(get_window_thread_process_id_error(windows::core::Error::from_win32()));
+                return Err(get_window_thread_process_id_error(
+                    windows::core::Error::from_win32(),
+                ));
             }
 
             let process = OwnedProcessHandle(

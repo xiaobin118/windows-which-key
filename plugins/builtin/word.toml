@@ -1,0 +1,125 @@
+schema_version = 1
+id = "word"
+name = "Microsoft Word"
+processes = ["WINWORD.EXE"]
+
+[[bindings]]
+keys = ["Ctrl+B"]
+description = "粗体"
+category = "格式"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+I"]
+description = "斜体"
+category = "格式"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+U"]
+description = "下划线"
+category = "格式"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+L"]
+description = "左对齐"
+category = "格式"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+E"]
+description = "居中"
+category = "格式"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+R"]
+description = "右对齐"
+category = "格式"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+J"]
+description = "两端对齐"
+category = "格式"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+1"]
+description = "单倍行距"
+category = "格式"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+2"]
+description = "双倍行距"
+category = "格式"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+5"]
+description = "1.5 倍行距"
+category = "格式"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+Enter"]
+description = "插入分页符"
+category = "编辑"
+priority = "essential"
+[[bindings]]
+keys = ["Ctrl+H"]
+description = "查找并替换"
+category = "编辑"
+priority = "essential"
+[[bindings]]
+keys = ["Ctrl+K"]
+description = "插入超链接"
+category = "编辑"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+Shift+8"]
+description = "显示／隐藏格式标记"
+category = "格式"
+priority = "essential"
+[[bindings]]
+keys = ["Ctrl+Shift+>"]
+description = "增大字体"
+category = "格式"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+Shift+<"]
+description = "减小字体"
+category = "格式"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+Alt+1"]
+description = "应用“标题 1”"
+category = "格式"
+priority = "essential"
+[[bindings]]
+keys = ["Ctrl+Alt+2"]
+description = "应用“标题 2”"
+category = "格式"
+priority = "essential"
+[[bindings]]
+keys = ["Ctrl+Alt+3"]
+description = "应用“标题 3”"
+category = "格式"
+priority = "essential"
+[[bindings]]
+keys = ["Shift+F3"]
+description = "切换英文大小写"
+category = "格式"
+priority = "advanced"
+[[bindings]]
+keys = ["F7"]
+description = "拼写和语法检查"
+category = "常用"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+Backspace"]
+description = "删除前一个单词"
+category = "编辑"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+Shift+Left"]
+description = "向左按单词选择文本"
+category = "导航"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+Shift+Right"]
+description = "向右按单词选择文本"
+category = "导航"
+priority = "recommended"

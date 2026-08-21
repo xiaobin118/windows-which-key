@@ -1,0 +1,140 @@
+schema_version = 1
+id = "powerpoint"
+name = "Microsoft PowerPoint"
+processes = ["POWERPNT.EXE"]
+
+[[bindings]]
+keys = ["Ctrl+M"]
+description = "新建幻灯片"
+category = "编辑"
+priority = "essential"
+[[bindings]]
+keys = ["Ctrl+D"]
+description = "复制选中的对象或幻灯片"
+category = "编辑"
+priority = "essential"
+[[bindings]]
+keys = ["Ctrl+G"]
+description = "组合对象"
+category = "编辑"
+priority = "essential"
+[[bindings]]
+keys = ["Ctrl+Shift+G"]
+description = "取消组合"
+category = "编辑"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+Shift+C"]
+description = "复制对象或文字格式"
+category = "格式"
+priority = "essential"
+[[bindings]]
+keys = ["Ctrl+Shift+V"]
+description = "粘贴格式"
+category = "格式"
+priority = "essential"
+[[bindings]]
+keys = ["Ctrl+K"]
+description = "插入超链接"
+category = "编辑"
+priority = "recommended"
+[[bindings]]
+keys = ["Tab"]
+description = "选择下一个对象"
+category = "导航"
+priority = "recommended"
+[[bindings]]
+keys = ["Shift+Tab"]
+description = "选择上一个对象"
+category = "导航"
+priority = "recommended"
+[[bindings]]
+keys = ["Up"]
+description = "向上微调对象位置"
+category = "编辑"
+priority = "recommended"
+[[bindings]]
+keys = ["Down"]
+description = "向下微调对象位置"
+category = "编辑"
+priority = "recommended"
+[[bindings]]
+keys = ["Left"]
+description = "向左微调对象位置"
+category = "编辑"
+priority = "recommended"
+[[bindings]]
+keys = ["Right"]
+description = "向右微调对象位置"
+category = "编辑"
+priority = "recommended"
+[[bindings]]
+keys = ["Shift+Up"]
+description = "向上较大幅度移动对象"
+category = "编辑"
+priority = "recommended"
+[[bindings]]
+keys = ["Shift+Down"]
+description = "向下较大幅度移动对象"
+category = "编辑"
+priority = "recommended"
+[[bindings]]
+keys = ["Shift+Left"]
+description = "向左较大幅度移动对象"
+category = "编辑"
+priority = "recommended"
+[[bindings]]
+keys = ["Shift+Right"]
+description = "向右较大幅度移动对象"
+category = "编辑"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+Enter"]
+description = "移到下一个占位符；必要时新建幻灯片"
+category = "编辑"
+priority = "recommended"
+[[bindings]]
+keys = ["PageUp"]
+description = "上一张幻灯片"
+category = "导航"
+priority = "recommended"
+[[bindings]]
+keys = ["PageDown"]
+description = "下一张幻灯片"
+category = "导航"
+priority = "recommended"
+[[bindings]]
+keys = ["F5"]
+description = "从第一张开始放映"
+category = "幻灯片放映"
+priority = "advanced"
+[[bindings]]
+keys = ["Shift+F5"]
+description = "从当前幻灯片开始放映"
+category = "幻灯片放映"
+priority = "advanced"
+[[bindings]]
+keys = ["Esc"]
+description = "退出放映"
+category = "幻灯片放映"
+priority = "advanced"
+[[bindings]]
+keys = ["B"]
+description = "放映时黑屏／恢复"
+category = "幻灯片放映"
+priority = "advanced"
+[[bindings]]
+keys = ["W"]
+description = "放映时白屏／恢复"
+category = "幻灯片放映"
+priority = "advanced"
+[[bindings]]
+keys = ["Ctrl+P"]
+description = "放映时切换到画笔"
+category = "幻灯片放映"
+priority = "advanced"
+[[bindings]]
+keys = ["E"]
+description = "清除放映时的墨迹"
+category = "幻灯片放映"
+priority = "advanced"

@@ -165,6 +165,7 @@ fn main() -> Result<()> {
 }
 
 /// 处理托盘图标的窗口消息，返回是否需要继续运行
+#[allow(clippy::too_many_arguments)]
 fn pump_messages(
     tray_hwnd: &HWND,
     tray: &tray_icon::TrayIcon,
@@ -202,7 +203,9 @@ fn pump_messages(
                                             warning.message
                                         );
                                     }
-                                    if let Some(command) = dismiss_after_successful_reload(state_machine, hook) {
+                                    if let Some(command) =
+                                        dismiss_after_successful_reload(state_machine, hook)
+                                    {
                                         overlay.execute(command)?;
                                     }
                                 }
@@ -410,8 +413,8 @@ mod tests {
         assert_eq!(state_machine.state, state_machine::State::Idle);
         assert!(!hook.show_all_open_for_test());
 
-        let resolved = keymap_resolver::KeymapResolver::from_snapshot(&configuration.current())
-            .resolve(None);
+        let resolved =
+            keymap_resolver::KeymapResolver::from_snapshot(&configuration.current()).resolve(None);
         state_machine.replace_registry(resolved.registry, resolved.app_name);
         match state_machine.handle_event(types::KeyEvent::ToggleShowAll) {
             Some(types::UiCommand::ShowAll { entries, .. }) => {

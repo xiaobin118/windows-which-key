@@ -171,7 +171,7 @@ fn build_node_from_keymap(keymap: RawKeymap) -> Result<Node> {
         for (group_name, group_data) in groups {
             let group_node = build_node_from_group(group_name.clone(), group_data)?;
             // Find the group reference in children and merge
-            for (_key, child) in node.children.iter_mut() {
+            for child in node.children.values_mut() {
                 if child.group_name.as_ref() == Some(&group_name) {
                     // Merge the group's children into this node
                     for (k, v) in group_node.children {
@@ -206,7 +206,7 @@ fn build_node_from_group(name: String, group: RawGroup) -> Result<Node> {
     if let Some(groups) = group.groups {
         for (group_name, group_data) in groups {
             let group_node = build_node_from_group(group_name.clone(), group_data)?;
-            for (_key, child) in node.children.iter_mut() {
+            for child in node.children.values_mut() {
                 if child.group_name.as_ref() == Some(&group_name) {
                     for (k, v) in group_node.children {
                         child.children.insert(k, v);
@@ -300,7 +300,7 @@ mod tests {
             modifiers: ModifierSet::empty(),
             key: Key::G,
         };
-        let git_entries = registry.entries_at(&[git_key.clone()]);
+        let git_entries = registry.entries_at(std::slice::from_ref(&git_key));
         assert_eq!(git_entries.len(), 1);
         assert!(git_entries[0].is_group);
 

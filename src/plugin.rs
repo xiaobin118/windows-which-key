@@ -8,7 +8,18 @@ use serde::Deserialize;
 use crate::shortcut::{format_shortcut, parse_shortcut};
 use crate::types::{BindingMetadata, BindingPriority, ShortcutKey};
 
-pub const BUILTIN_PLUGINS: &[(&str, &str)] = &[];
+pub const BUILTIN_PLUGINS: &[(&str, &str)] = &[
+    (
+        "vscode.toml",
+        include_str!("../plugins/builtin/vscode.toml"),
+    ),
+    ("word.toml", include_str!("../plugins/builtin/word.toml")),
+    ("excel.toml", include_str!("../plugins/builtin/excel.toml")),
+    (
+        "powerpoint.toml",
+        include_str!("../plugins/builtin/powerpoint.toml"),
+    ),
+];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PluginOrigin {
@@ -408,6 +419,18 @@ description = "Two"
 category = "Common"
 priority = "essential"
 "#;
+
+    #[test]
+    fn every_builtin_plugin_loads_and_expected_processes_exist() {
+        let report = PluginSnapshot::load(BUILTIN_PLUGINS, Path::new("missing-user-dir")).unwrap();
+        assert!(report.warnings.is_empty());
+        for process in ["code.exe", "winword.exe", "excel.exe", "powerpnt.exe"] {
+            assert!(
+                report.snapshot.for_process(process).is_some(),
+                "missing {process}"
+            );
+        }
+    }
 
     #[test]
     fn user_plugin_overrides_builtin_by_id_and_binding() {

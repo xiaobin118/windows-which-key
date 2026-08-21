@@ -1,11 +1,11 @@
+use crate::types::*;
+use anyhow::{Context, Result};
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
-use anyhow::{Context, Result};
 use windows::Win32::Foundation::{LPARAM, LRESULT, WPARAM};
 use windows::Win32::UI::WindowsAndMessaging::*;
-use crate::types::*;
 
 // Wrapper for HHOOK to make it Send+Sync
 struct HookHandle(HHOOK);
@@ -109,12 +109,9 @@ impl KeyboardHook {
 
         std::thread::spawn(move || {
             unsafe {
-                let hook = SetWindowsHookExW(
-                    WH_KEYBOARD_LL,
-                    Some(keyboard_proc),
-                    None,
-                    0,
-                ).context("Failed to install keyboard hook").unwrap();
+                let hook = SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_proc), None, 0)
+                    .context("Failed to install keyboard hook")
+                    .unwrap();
 
                 *HOOK_HANDLE.lock().unwrap() = Some(HookHandle(hook));
                 HOOK_ACTIVE.store(true, Ordering::SeqCst);
@@ -159,11 +156,7 @@ impl KeyboardHook {
     }
 }
 
-unsafe extern "system" fn keyboard_proc(
-    n_code: i32,
-    w_param: WPARAM,
-    l_param: LPARAM,
-) -> LRESULT {
+unsafe extern "system" fn keyboard_proc(n_code: i32, w_param: WPARAM, l_param: LPARAM) -> LRESULT {
     if n_code >= 0 && HOOK_ACTIVE.load(Ordering::SeqCst) {
         let kb_struct = *(l_param.0 as *const KBDLLHOOKSTRUCT);
         let vk = kb_struct.vkCode;
@@ -232,8 +225,10 @@ mod tests {
 
     #[test]
     fn show_all_hotkey_is_swallowed_but_normal_shortcuts_pass() {
-        let mut decision = HookDecisionState::default();
-        decision.modifiers = ModifierSet::META | ModifierSet::SHIFT;
+        let mut decision = HookDecisionState {
+            modifiers: ModifierSet::META | ModifierSet::SHIFT,
+            ..Default::default()
+        };
 
         assert_eq!(
             decision.on_key_down(key("/"), false),
@@ -261,8 +256,10 @@ mod tests {
 
     #[test]
     fn show_all_hotkey_does_not_repeat_or_leak_key_up() {
-        let mut decision = HookDecisionState::default();
-        decision.modifiers = ModifierSet::META | ModifierSet::SHIFT;
+        let mut decision = HookDecisionState {
+            modifiers: ModifierSet::META | ModifierSet::SHIFT,
+            ..Default::default()
+        };
 
         assert!(matches!(
             decision.on_key_down(key("/"), false),
@@ -278,18 +275,17 @@ mod tests {
 
     #[test]
     fn repeat_is_swallowed_after_shift_is_released_until_slash_key_up() {
-        let mut decision = HookDecisionState::default();
-        decision.modifiers = ModifierSet::META | ModifierSet::SHIFT;
+        let mut decision = HookDecisionState {
+            modifiers: ModifierSet::META | ModifierSet::SHIFT,
+            ..Default::default()
+        };
         assert!(matches!(
             decision.on_key_down(key("/"), false),
             HookAction::SendAndSwallow(KeyEvent::ToggleShowAll)
         ));
 
         decision.on_modifier(Modifier::Shift, false);
-        assert_eq!(
-            decision.on_key_down(key("/"), false),
-            HookAction::Swallow
-        );
+        assert_eq!(decision.on_key_down(key("/"), false), HookAction::Swallow);
         assert_eq!(decision.on_key_up(key("/")), HookAction::Swallow);
         assert_eq!(
             decision.on_key_down(key("/"), false),
@@ -299,18 +295,17 @@ mod tests {
 
     #[test]
     fn repeat_is_swallowed_after_ctrl_is_pressed_until_slash_key_up() {
-        let mut decision = HookDecisionState::default();
-        decision.modifiers = ModifierSet::META | ModifierSet::SHIFT;
+        let mut decision = HookDecisionState {
+            modifiers: ModifierSet::META | ModifierSet::SHIFT,
+            ..Default::default()
+        };
         assert!(matches!(
             decision.on_key_down(key("/"), false),
             HookAction::SendAndSwallow(KeyEvent::ToggleShowAll)
         ));
 
         decision.on_modifier(Modifier::Ctrl, true);
-        assert_eq!(
-            decision.on_key_down(key("/"), false),
-            HookAction::Swallow
-        );
+        assert_eq!(decision.on_key_down(key("/"), false), HookAction::Swallow);
         assert_eq!(decision.on_key_up(key("/")), HookAction::Swallow);
         assert_eq!(
             decision.on_key_down(key("/"), false),
