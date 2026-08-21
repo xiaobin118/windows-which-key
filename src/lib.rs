@@ -8,3 +8,4 @@ pub mod window_manager;
 pub mod webview_bridge;
 pub mod overlay_controller;
 pub mod tray_icon;
+pub mod plugin;
