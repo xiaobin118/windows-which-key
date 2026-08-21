@@ -45,12 +45,11 @@ impl HookDecisionState {
     }
 
     pub fn on_key_down(&mut self, key: Key, show_all_open: bool) -> HookAction {
-        if key.vk_code() == VK_SLASH
-            && self.modifiers == (ModifierSet::META | ModifierSet::SHIFT)
-        {
-            if self.toggle_pressed {
-                return HookAction::Swallow;
-            }
+        if key.vk_code() == VK_SLASH && self.toggle_pressed {
+            return HookAction::Swallow;
+        }
+
+        if key.vk_code() == VK_SLASH && self.modifiers == (ModifierSet::META | ModifierSet::SHIFT) {
             self.toggle_pressed = true;
             self.swallowed_keys.insert(key);
             return HookAction::SendAndSwallow(KeyEvent::ToggleShowAll);
@@ -271,6 +270,48 @@ mod tests {
             decision.on_key_down(key("/"), false),
             HookAction::SendAndSwallow(KeyEvent::ToggleShowAll)
         ));
+    }
+
+    #[test]
+    fn repeat_is_swallowed_after_shift_is_released_until_slash_key_up() {
+        let mut decision = HookDecisionState::default();
+        decision.modifiers = ModifierSet::META | ModifierSet::SHIFT;
+        assert!(matches!(
+            decision.on_key_down(key("/"), false),
+            HookAction::SendAndSwallow(KeyEvent::ToggleShowAll)
+        ));
+
+        decision.on_modifier(Modifier::Shift, false);
+        assert_eq!(
+            decision.on_key_down(key("/"), false),
+            HookAction::Swallow
+        );
+        assert_eq!(decision.on_key_up(key("/")), HookAction::Swallow);
+        assert_eq!(
+            decision.on_key_down(key("/"), false),
+            HookAction::SendAndPass(KeyEvent::KeyDown(key("/")))
+        );
+    }
+
+    #[test]
+    fn repeat_is_swallowed_after_ctrl_is_pressed_until_slash_key_up() {
+        let mut decision = HookDecisionState::default();
+        decision.modifiers = ModifierSet::META | ModifierSet::SHIFT;
+        assert!(matches!(
+            decision.on_key_down(key("/"), false),
+            HookAction::SendAndSwallow(KeyEvent::ToggleShowAll)
+        ));
+
+        decision.on_modifier(Modifier::Ctrl, true);
+        assert_eq!(
+            decision.on_key_down(key("/"), false),
+            HookAction::Swallow
+        );
+        assert_eq!(decision.on_key_up(key("/")), HookAction::Swallow);
+        assert_eq!(
+            decision.on_key_down(key("/"), false),
+            HookAction::SendAndPass(KeyEvent::KeyDown(key("/")))
+        );
     }
 
     #[test]
