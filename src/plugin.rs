@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::shortcut::{format_shortcut, parse_shortcut};
 use crate::types::{BindingMetadata, BindingPriority, ShortcutKey};
@@ -22,7 +22,7 @@ pub const BUILTIN_PLUGINS: &[(&str, &str)] = &[
 ];
 
 /// A validated, normalized plugin identifier used at resource boundaries.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
 #[serde(transparent)]
 pub struct PluginId(String);
 
@@ -35,6 +35,31 @@ impl PluginId {
 
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for PluginId {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Self::parse(String::deserialize(deserializer)?).map_err(serde::de::Error::custom)
+    }
+}
+
+#[cfg(test)]
+mod plugin_id_tests {
+    use super::PluginId;
+
+    #[test]
+    fn deserialization_normalizes_plugin_id_casing() {
+        let id: PluginId = serde_json::from_str("\"Editor\"").unwrap();
+        assert_eq!(id, PluginId::parse("editor").unwrap());
+    }
+
+    #[test]
+    fn deserialization_rejects_an_empty_plugin_id() {
+        assert!(serde_json::from_str::<PluginId>("\"   \\t\"").is_err());
     }
 }
 

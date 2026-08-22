@@ -243,6 +243,27 @@ mod tests {
     }
 
     #[test]
+    fn deserialized_plugin_revisions_collapse_casing_variants_to_one_id() {
+        let revisions: ResourceRevisions = serde_json::from_str(
+            r#"{
+                "theme": "sha256:theme",
+                "global_config": "sha256:global",
+                "plugins": {
+                    "Editor": "sha256:first",
+                    "editor": "sha256:second"
+                }
+            }"#,
+        )
+        .unwrap();
+
+        assert_eq!(revisions.plugins.len(), 1);
+        assert_eq!(
+            revisions.plugins[&PluginId::parse("EDITOR").unwrap()].as_str(),
+            "sha256:second"
+        );
+    }
+
+    #[test]
     fn runtime_snapshot_keeps_all_runtime_components_from_one_configuration_snapshot() {
         let configuration = configuration_snapshot();
         let snapshot = RuntimeSnapshot::from_configuration(
