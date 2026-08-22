@@ -1,8 +1,8 @@
-use anyhow::{Context, Result};
 use crate::types::UiCommand;
-use crate::window_manager::WindowManager;
 use crate::webview_bridge::WebView2Bridge;
 use crate::webview_bridge::FRONTEND_HTML;
+use crate::window_manager::WindowManager;
+use anyhow::{Context, Result};
 
 const DEFAULT_WIDTH: i32 = 400;
 const DEFAULT_HEIGHT: i32 = 300;
@@ -16,30 +16,33 @@ pub struct OverlayController {
 impl OverlayController {
     pub fn new() -> Result<Self> {
         let mut window_manager = WindowManager::new();
-        let hwnd = window_manager.create_window()
+        let hwnd = window_manager
+            .create_window()
             .context("Failed to create overlay window")?;
 
-        // Initialize WebView2 bridge (may fail gracefully on stub)
-        let webview_bridge = WebView2Bridge::new(hwnd).ok();
-
-        // Load frontend HTML
-        if let Some(ref bridge) = webview_bridge {
-            bridge.load_html(FRONTEND_HTML).ok();
-        }
+        let webview_bridge = WebView2Bridge::new(hwnd).context("初始化 WebView2 失败")?;
+        webview_bridge
+            .load_html(FRONTEND_HTML)
+            .context("加载覆盖层 HTML 失败")?;
 
         Ok(OverlayController {
             window_manager,
-            webview_bridge,
+            webview_bridge: Some(webview_bridge),
             window_size: (DEFAULT_WIDTH, DEFAULT_HEIGHT),
         })
     }
 
     pub fn execute(&mut self, cmd: UiCommand) -> Result<()> {
         match cmd {
-            UiCommand::Show { position, entries, breadcrumb } => {
+            UiCommand::Show {
+                position,
+                entries,
+                breadcrumb,
+            } => {
                 log::debug!("Show overlay at {:?}, {} entries", position, entries.len());
                 let (x, y) = self.adjust_position(position);
-                self.window_manager.show(x, y, self.window_size.0, self.window_size.1)?;
+                self.window_manager
+                    .show(x, y, self.window_size.0, self.window_size.1)?;
 
                 if let Some(ref bridge) = self.webview_bridge {
                     bridge.send_command(&UiCommand::Show {
@@ -49,13 +52,23 @@ impl OverlayController {
                     })?;
                 }
             }
-            UiCommand::UpdateEntries { entries, breadcrumb } => {
+            UiCommand::UpdateEntries {
+                entries,
+                breadcrumb,
+            } => {
                 log::debug!("Update entries: {} entries", entries.len());
                 if let Some(ref bridge) = self.webview_bridge {
                     bridge.send_command(&UiCommand::UpdateEntries {
                         entries,
                         breadcrumb,
                     })?;
+                }
+            }
+            UiCommand::ShowAll { app_name, entries } => {
+                self.window_manager
+                    .show(100, 100, self.window_size.0, self.window_size.1)?;
+                if let Some(ref bridge) = self.webview_bridge {
+                    bridge.send_command(&UiCommand::ShowAll { app_name, entries })?;
                 }
             }
             UiCommand::Hide => {

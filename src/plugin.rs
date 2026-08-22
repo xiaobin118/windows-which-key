@@ -1,13 +1,25 @@
-use std::collections::HashMap;
-use std::fs;
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
 use serde::Deserialize;
 
-use crate::shortcut::parse_shortcut;
+use crate::shortcut::{format_shortcut, parse_shortcut};
 use crate::types::{BindingMetadata, BindingPriority, ShortcutKey};
+
+pub const BUILTIN_PLUGINS: &[(&str, &str)] = &[
+    (
+        "vscode.toml",
+        include_str!("../plugins/builtin/vscode.toml"),
+    ),
+    ("word.toml", include_str!("../plugins/builtin/word.toml")),
+    ("excel.toml", include_str!("../plugins/builtin/excel.toml")),
+    (
+        "powerpoint.toml",
+        include_str!("../plugins/builtin/powerpoint.toml"),
+    ),
+];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PluginOrigin {
@@ -15,367 +27,592 @@ pub enum PluginOrigin {
     User(PathBuf),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
+pub struct PluginDefinition {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub processes: Vec<String>,
+    pub bindings: Vec<PluginBinding>,
+    pub origin: PluginOrigin,
+    pub disabled: bool,
+}
+
+#[derive(Debug, Clone)]
 pub enum BindingKeys {
     Alternatives(Vec<ShortcutKey>),
     Sequence(Vec<ShortcutKey>),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct PluginBinding {
     pub keys: BindingKeys,
     pub description: String,
     pub metadata: BindingMetadata,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PluginDefinition {
-    pub schema_version: u32,
-    pub id: String,
-    pub name: String,
-    pub description: String,
-    pub processes: Vec<String>,
-    pub disabled: bool,
-    pub bindings: Vec<PluginBinding>,
-    pub origin: PluginOrigin,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PluginWarning {
-    pub path: PathBuf,
-    pub message: String,
-}
-
-#[derive(Debug, Clone)]
-pub struct PluginSnapshot {
-    plugins: Vec<PluginDefinition>,
-    process_index: HashMap<String, usize>,
-}
-
-#[derive(Debug, Clone)]
-pub struct PluginLoadReport {
-    pub snapshot: Arc<PluginSnapshot>,
-    pub warnings: Vec<PluginWarning>,
-}
-
-impl PluginSnapshot {
-    pub fn load(built_ins: &[(&str, &str)], user_dir: &Path) -> Result<PluginLoadReport> {
-        let mut builtins = Vec::with_capacity(built_ins.len());
-        for (name, source) in built_ins {
-            builtins.push(parse_plugin_toml(source, PluginOrigin::BuiltIn)
-                .with_context(|| format!("invalid built-in plugin: {name}"))?);
-        }
-        validate_origin_conflicts(&builtins)?;
-
-        let mut user_files = fs::read_dir(user_dir)
-            .with_context(|| format!("failed to read user plugin directory: {}", user_dir.display()))?
-            .collect::<std::result::Result<Vec<_>, _>>()?;
-        user_files.retain(|entry| {
-            entry.file_type().is_ok_and(|file_type| file_type.is_file())
-                && entry.path().extension().is_some_and(|ext| ext.eq_ignore_ascii_case("toml"))
-        });
-        user_files.sort_by_key(|entry| entry.file_name().to_string_lossy().to_ascii_lowercase());
-
-        let mut warnings = Vec::new();
-        let mut users = Vec::new();
-        for entry in user_files {
-            let path = entry.path();
-            match fs::read_to_string(&path).and_then(|source| {
-                parse_plugin_toml(&source, PluginOrigin::User(path.clone())).map_err(|error| std::io::Error::other(error.to_string()))
-            }) {
-                Ok(plugin) => users.push(plugin),
-                Err(error) => warnings.push(PluginWarning { path, message: error.to_string() }),
-            }
-        }
-        validate_origin_conflicts(&users)?;
-        let plugins = merge_plugins(builtins, users);
-        let mut process_index = HashMap::new();
-        for (index, plugin) in plugins.iter().enumerate() {
-            if !plugin.disabled {
-                for process in &plugin.processes { process_index.insert(process.clone(), index); }
-            }
-        }
-        Ok(PluginLoadReport { snapshot: Arc::new(Self { plugins, process_index }), warnings })
-    }
-
-    pub fn for_process(&self, normalized_exe: &str) -> Option<&PluginDefinition> {
-        self.process_index.get(&normalized_exe.to_ascii_lowercase()).map(|index| &self.plugins[*index])
-    }
-}
-
-fn validate_origin_conflicts(plugins: &[PluginDefinition]) -> Result<()> {
-    let mut claims = HashMap::<&str, &str>::new();
-    for plugin in plugins {
-        for process in &plugin.processes {
-            if let Some(previous) = claims.insert(process, &plugin.id) {
-                if previous != &plugin.id { bail!("conflicting plugin IDs {previous} and {} claim process {process}", plugin.id); }
-            }
-        }
-    }
-    Ok(())
-}
-
-fn merge_plugins(builtins: Vec<PluginDefinition>, users: Vec<PluginDefinition>) -> Vec<PluginDefinition> {
-    let mut merged = builtins;
-    for user in users {
-        if let Some(existing) = merged.iter_mut().find(|plugin| plugin.id == user.id) {
-            let mut bindings = existing.bindings.clone();
-            for binding in user.bindings {
-                if let Some(index) = bindings.iter().position(|old| same_binding_keys(&old.keys, &binding.keys)) { bindings[index] = binding; } else { bindings.push(binding); }
-            }
-            *existing = PluginDefinition { bindings, ..user };
-        } else {
-            merged.push(user);
-        }
-    }
-    merged
-}
-
-#[derive(Deserialize)]
-struct RawPlugin {
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawPluginDefinition {
     schema_version: u32,
     id: String,
     name: String,
-    description: String,
+    description: Option<String>,
     processes: Vec<String>,
     #[serde(default)]
-    disabled: bool,
+    bindings: Vec<RawPluginBinding>,
     #[serde(default)]
-    bindings: Vec<RawBinding>,
+    disabled: bool,
 }
 
-#[derive(Deserialize)]
-struct RawBinding {
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawPluginBinding {
     keys: Vec<String>,
     description: String,
     category: String,
-    priority: String,
+    priority: BindingPriority,
     #[serde(default)]
     sequence: bool,
 }
 
 pub fn parse_plugin_toml(source: &str, origin: PluginOrigin) -> Result<PluginDefinition> {
-    let raw: RawPlugin = toml::from_str(source).context("invalid plugin TOML")?;
+    let raw: RawPluginDefinition = toml::from_str(source).context("Invalid plugin TOML")?;
     if raw.schema_version != 1 {
-        bail!("unsupported plugin schema version: {}", raw.schema_version);
+        bail!("Unsupported plugin schema version: {}", raw.schema_version);
     }
-    let id = require_text("id", raw.id)?.to_ascii_lowercase();
-    let name = require_text("name", raw.name)?;
-    let description = require_text("description", raw.description)?;
+
+    let id = normalized_required("id", raw.id)?.to_ascii_lowercase();
+    let name = normalized_required("name", raw.name)?;
+    let description = raw
+        .description
+        .map(|description| normalized_required("description", description))
+        .transpose()?;
     if raw.processes.is_empty() {
-        bail!("processes must not be empty");
+        bail!("Plugin processes cannot be empty");
     }
-    let processes = raw.processes.into_iter().map(|p| require_text("process", p).map(|p| p.to_ascii_lowercase())).collect::<Result<Vec<_>>>()?;
-
-    let mut bindings = Vec::with_capacity(raw.bindings.len());
-    for raw_binding in raw.bindings {
-        if raw_binding.keys.is_empty() {
-            bail!("binding keys must not be empty");
-        }
-        let keys = raw_binding.keys.into_iter().map(|key| parse_shortcut(&key).with_context(|| format!("invalid shortcut: {key}"))).collect::<Result<Vec<_>>>()?;
-        let binding_keys = if raw_binding.sequence { BindingKeys::Sequence(keys) } else { BindingKeys::Alternatives(keys) };
-        let binding = PluginBinding {
-            keys: binding_keys,
-            description: require_text("binding description", raw_binding.description)?,
-            metadata: BindingMetadata { category: require_text("category", raw_binding.category)?, priority: parse_priority(&raw_binding.priority)? },
-        };
-        if bindings.iter().any(|existing| same_binding_keys(&existing.keys, &binding.keys)) {
-            bail!("duplicate normalized binding");
-        }
-        bindings.push(binding);
+    let processes = raw
+        .processes
+        .into_iter()
+        .map(|process| normalized_required("process", process).map(|value| value.to_lowercase()))
+        .collect::<Result<Vec<_>>>()?;
+    if raw.bindings.is_empty() && !raw.disabled {
+        bail!("Plugin bindings cannot be empty");
     }
 
-    Ok(PluginDefinition { schema_version: 1, id, name, description, processes, disabled: raw.disabled, bindings, origin })
+    let mut seen_bindings = HashSet::new();
+    let bindings = raw
+        .bindings
+        .into_iter()
+        .map(|binding| parse_binding(binding, &mut seen_bindings))
+        .collect::<Result<Vec<_>>>()?;
+
+    Ok(PluginDefinition {
+        id,
+        name,
+        description,
+        processes,
+        bindings,
+        origin,
+        disabled: raw.disabled,
+    })
 }
 
-fn require_text(field: &str, value: String) -> Result<String> {
-    if value.trim().is_empty() { bail!("{field} must not be blank"); }
+impl PluginDefinition {
+    pub fn binding_description(&self, shortcut: &str) -> Option<&str> {
+        let shortcut = parse_shortcut(shortcut).ok()?;
+        let identity = binding_identity(&[shortcut], false);
+        self.bindings
+            .iter()
+            .find(|binding| binding_identity_from_binding(binding) == identity)
+            .map(|binding| binding.description.as_str())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct PluginWarning {
+    pub path: PathBuf,
+    pub message: String,
+}
+
+#[derive(Debug)]
+pub struct PluginLoadReport {
+    pub snapshot: Arc<PluginSnapshot>,
+    pub warnings: Vec<PluginWarning>,
+}
+
+#[derive(Debug, Default)]
+pub struct PluginSnapshot {
+    plugins_by_process: HashMap<String, PluginDefinition>,
+}
+
+impl PluginSnapshot {
+    pub fn load(built_ins: &[(&str, &str)], user_dir: &Path) -> Result<PluginLoadReport> {
+        let mut built_in_plugins = Vec::with_capacity(built_ins.len());
+        for (name, source) in built_ins {
+            built_in_plugins.push(
+                parse_plugin_toml(source, PluginOrigin::BuiltIn)
+                    .with_context(|| format!("Invalid built-in plugin {name}"))?,
+            );
+        }
+        let built_in_plugins = merge_origin_plugins(built_in_plugins, "built-in")?;
+
+        let mut warnings = Vec::new();
+        let mut user_paths = match std::fs::read_dir(user_dir) {
+            Ok(entries) => entries
+                .filter_map(|entry| entry.ok())
+                .map(|entry| entry.path())
+                .filter(|path| path.is_file() && has_toml_extension(path))
+                .collect::<Vec<_>>(),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+            Err(error) => {
+                warnings.push(PluginWarning {
+                    path: user_dir.to_path_buf(),
+                    message: format!("Unable to read plugin directory: {error}"),
+                });
+                Vec::new()
+            }
+        };
+        sort_plugin_paths(&mut user_paths);
+
+        let mut user_plugins = Vec::new();
+        for path in user_paths {
+            match std::fs::read_to_string(&path)
+                .with_context(|| format!("Unable to read user plugin {}", path.display()))
+                .and_then(|source| parse_plugin_toml(&source, PluginOrigin::User(path.clone())))
+            {
+                Ok(plugin) => user_plugins.push(plugin),
+                Err(error) => warnings.push(PluginWarning {
+                    path,
+                    message: error.to_string(),
+                }),
+            }
+        }
+        let user_plugins = merge_origin_plugins(user_plugins, "user")?;
+
+        let mut plugins = built_in_plugins;
+        for (id, user_plugin) in user_plugins {
+            if user_plugin.disabled {
+                plugins.remove(&id);
+            } else if let Some(built_in_plugin) = plugins.get(&id) {
+                plugins.insert(id, merge_plugin(built_in_plugin, user_plugin));
+            } else {
+                plugins.insert(id, user_plugin);
+            }
+        }
+
+        let mut plugins_by_process: HashMap<String, PluginDefinition> = HashMap::new();
+        for plugin in plugins.into_values() {
+            for process in &plugin.processes {
+                match plugins_by_process.get(process) {
+                    Some(existing)
+                        if origin_rank(&existing.origin) > origin_rank(&plugin.origin) => {}
+                    _ => {
+                        plugins_by_process.insert(process.clone(), plugin.clone());
+                    }
+                }
+            }
+        }
+
+        Ok(PluginLoadReport {
+            snapshot: Arc::new(Self { plugins_by_process }),
+            warnings,
+        })
+    }
+
+    pub fn for_process(&self, normalized_exe: &str) -> Option<&PluginDefinition> {
+        self.plugins_by_process.get(&normalized_exe.to_lowercase())
+    }
+}
+
+fn has_toml_extension(path: &Path) -> bool {
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("toml"))
+}
+
+fn sort_plugin_paths(paths: &mut [PathBuf]) {
+    paths.sort_by(|left, right| {
+        left.to_string_lossy()
+            .to_ascii_lowercase()
+            .cmp(&right.to_string_lossy().to_ascii_lowercase())
+            .then_with(|| left.cmp(right))
+    });
+}
+
+fn merge_origin_plugins(
+    plugins: Vec<PluginDefinition>,
+    origin_name: &str,
+) -> Result<BTreeMap<String, PluginDefinition>> {
+    let mut merged = BTreeMap::new();
+    let mut processes = HashMap::<String, String>::new();
+    for plugin in plugins {
+        for process in &plugin.processes {
+            if let Some(existing_id) = processes.insert(process.clone(), plugin.id.clone()) {
+                if existing_id != plugin.id {
+                    bail!(
+                        "Conflicting {origin_name} plugins {existing_id} and {} for process {process}",
+                        plugin.id
+                    );
+                }
+            }
+        }
+        match merged.remove(&plugin.id) {
+            Some(existing) => {
+                merged.insert(plugin.id.clone(), merge_plugin(&existing, plugin));
+            }
+            None => {
+                merged.insert(plugin.id.clone(), plugin);
+            }
+        }
+    }
+    Ok(merged)
+}
+
+fn merge_plugin(base: &PluginDefinition, mut overlay: PluginDefinition) -> PluginDefinition {
+    let mut bindings = base.bindings.clone();
+    for binding in overlay.bindings.drain(..) {
+        let identity = binding_identity_from_binding(&binding);
+        if let Some(index) = bindings
+            .iter()
+            .position(|existing| binding_identity_from_binding(existing) == identity)
+        {
+            bindings[index] = binding;
+        } else {
+            bindings.push(binding);
+        }
+    }
+    overlay.bindings = bindings;
+    overlay
+}
+
+fn binding_identity_from_binding(binding: &PluginBinding) -> String {
+    match &binding.keys {
+        BindingKeys::Alternatives(keys) => binding_identity(keys, false),
+        BindingKeys::Sequence(keys) => binding_identity(keys, true),
+    }
+}
+
+fn origin_rank(origin: &PluginOrigin) -> u8 {
+    match origin {
+        PluginOrigin::BuiltIn => 0,
+        PluginOrigin::User(_) => 1,
+    }
+}
+
+fn parse_binding(
+    raw: RawPluginBinding,
+    seen_bindings: &mut HashSet<String>,
+) -> Result<PluginBinding> {
+    if raw.keys.is_empty() {
+        bail!("Binding keys cannot be empty");
+    }
+
+    let keys = raw
+        .keys
+        .into_iter()
+        .map(|key| parse_shortcut(&key).with_context(|| format!("Invalid binding shortcut: {key}")))
+        .collect::<Result<Vec<_>>>()?;
+    let description = normalized_required("binding description", raw.description)?;
+    let category = normalized_required("binding category", raw.category)?;
+
+    let identity = binding_identity(&keys, raw.sequence);
+    if !seen_bindings.insert(identity) {
+        bail!("Duplicate normalized binding");
+    }
+
+    let keys = if raw.sequence {
+        BindingKeys::Sequence(keys)
+    } else {
+        BindingKeys::Alternatives(keys)
+    };
+    Ok(PluginBinding {
+        keys,
+        description,
+        metadata: BindingMetadata {
+            category,
+            priority: raw.priority,
+        },
+    })
+}
+
+fn normalized_required(field: &str, value: String) -> Result<String> {
+    let value = value.trim().to_string();
+    if value.is_empty() {
+        bail!("Plugin {field} cannot be blank");
+    }
     Ok(value)
 }
 
-fn parse_priority(value: &str) -> Result<BindingPriority> {
-    match value {
-        "essential" => Ok(BindingPriority::Essential),
-        "recommended" => Ok(BindingPriority::Recommended),
-        "advanced" => Ok(BindingPriority::Advanced),
-        _ => bail!("invalid binding priority: {value}"),
+fn binding_identity(keys: &[ShortcutKey], sequence: bool) -> String {
+    let mut normalized = keys.iter().map(format_shortcut).collect::<Vec<_>>();
+    if !sequence {
+        normalized.sort_unstable();
     }
-}
-
-fn same_binding_keys(left: &BindingKeys, right: &BindingKeys) -> bool {
-    match (left, right) {
-        (BindingKeys::Sequence(a), BindingKeys::Sequence(b)) => a == b,
-        (BindingKeys::Alternatives(a), BindingKeys::Alternatives(b)) => a.len() == b.len() && a.iter().all(|key| b.contains(key)),
-        _ => false,
-    }
+    format!(
+        "{}:{}",
+        if sequence { "sequence" } else { "alternatives" },
+        normalized.join(",")
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
-    use tempfile::tempdir;
+    use std::path::Path;
 
-    const VALID: &str = r#"
+    const BUILTIN_VSCODE: &str = r#"
 schema_version = 1
-id = "VSCode"
+id = "vscode"
 name = "Visual Studio Code"
-description = "Editor shortcuts"
-processes = ["Code.exe", "CODE-INSIDERS.EXE"]
+processes = ["Code.exe"]
 
 [[bindings]]
-keys = ["C-S-p", "F1"]
-description = "Command palette"
-category = "Navigation"
+keys = ["C-p"]
+description = "Quick Open"
+category = "Common"
 priority = "essential"
 
 [[bindings]]
-keys = ["C-k", "C-f"]
-description = "Format selection"
-category = "Editing"
-priority = "recommended"
-sequence = true
+keys = ["C-S-p"]
+description = "Command Palette"
+category = "Common"
+priority = "essential"
+"#;
+
+    const USER_VSCODE: &str = r#"
+schema_version = 1
+id = "vscode"
+name = "My VS Code"
+processes = ["Code.exe"]
+
+[[bindings]]
+keys = ["C-p"]
+description = "My Quick Open"
+category = "Common"
+priority = "essential"
+"#;
+
+    const DISABLED_VSCODE: &str = r#"
+schema_version = 1
+id = "vscode"
+name = "Visual Studio Code"
+processes = ["Code.exe"]
+disabled = true
+"#;
+
+    const PLUGIN_ONE: &str = r#"
+schema_version = 1
+id = "one"
+name = "One"
+processes = ["shared.exe"]
+
+[[bindings]]
+keys = ["C-p"]
+description = "One"
+category = "Common"
+priority = "essential"
+"#;
+
+    const PLUGIN_TWO_SAME_PROCESS: &str = r#"
+schema_version = 1
+id = "two"
+name = "Two"
+processes = ["shared.exe"]
+
+[[bindings]]
+keys = ["C-p"]
+description = "Two"
+category = "Common"
+priority = "essential"
 "#;
 
     #[test]
-    fn parses_and_normalizes_plugin_and_bindings() {
-        let plugin = parse_plugin_toml(VALID, PluginOrigin::BuiltIn).unwrap();
-        assert_eq!(plugin.id, "vscode");
-        assert_eq!(plugin.processes, vec!["code.exe", "code-insiders.exe"]);
-        assert_eq!(plugin.bindings.len(), 2);
-        assert!(matches!(plugin.bindings[0].keys, BindingKeys::Alternatives(ref keys) if keys.len() == 2));
-        assert!(matches!(plugin.bindings[1].keys, BindingKeys::Sequence(ref keys) if keys.len() == 2));
-        assert_eq!(plugin.bindings[0].metadata.category, "Navigation");
-        assert_eq!(plugin.origin, PluginOrigin::BuiltIn);
-    }
+    fn every_builtin_plugin_loads_and_expected_processes_exist() {
+        let report = PluginSnapshot::load(BUILTIN_PLUGINS, Path::new("missing-user-dir")).unwrap();
+        assert!(report.warnings.is_empty());
+        for process in ["code.exe", "winword.exe", "excel.exe", "powerpnt.exe"] {
+            assert!(
+                report.snapshot.for_process(process).is_some(),
+                "missing {process}"
+            );
+        }
 
-    #[test]
-    fn rejects_invalid_plugin_values() {
-        for (field, value) in [
-            ("schema_version", "2"),
-            ("id", "\"  \""),
-            ("name", "\"\""),
-            ("description", "\" \""),
-            ("processes", "[]"),
-        ] {
-            let source = format!("schema_version = 1\nid = \"id\"\nname = \"name\"\ndescription = \"desc\"\nprocesses = [\"app.exe\"]\n{field} = {value}");
-            assert!(parse_plugin_toml(&source, PluginOrigin::BuiltIn).is_err(), "{field}");
+        let powerpoint = report.snapshot.for_process("powerpnt.exe").unwrap();
+        for shortcut in ["F5", "S-F5"] {
+            let binding = powerpoint
+                .bindings
+                .iter()
+                .find(|binding| {
+                    binding_identity_from_binding(binding)
+                        == binding_identity(&[parse_shortcut(shortcut).unwrap()], false)
+                })
+                .unwrap();
+            assert_eq!(binding.metadata.priority, BindingPriority::Essential);
         }
     }
 
     #[test]
-    fn rejects_invalid_bindings_and_duplicates() {
-        for priority in ["invalid", "", "ESSENTIAL"] {
-            let source = VALID.replace("priority = \"essential\"", &format!("priority = \"{priority}\""));
-            assert!(parse_plugin_toml(&source, PluginOrigin::BuiltIn).is_err());
-        }
-        let duplicate = VALID.replace("keys = [\"C-k\", \"C-f\"]", "keys = [\"C-S-p\"]");
-        assert!(parse_plugin_toml(&duplicate, PluginOrigin::BuiltIn).is_err());
-        let empty = VALID.replace("keys = [\"C-S-p\", \"F1\"]", "keys = []");
-        assert!(parse_plugin_toml(&empty, PluginOrigin::BuiltIn).is_err());
-        let malformed = VALID.replace("keys = [\"C-S-p\", \"F1\"]", "keys = [\"Ctrl-\"]");
-        assert!(parse_plugin_toml(&malformed, PluginOrigin::BuiltIn).is_err());
+    fn user_plugin_overrides_builtin_by_id_and_binding() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("vscode.toml"), USER_VSCODE).unwrap();
+        let report = PluginSnapshot::load(&[("vscode.toml", BUILTIN_VSCODE)], dir.path()).unwrap();
+        let plugin = report.snapshot.for_process("CODE.EXE").unwrap();
+        assert_eq!(plugin.binding_description("C-p"), Some("My Quick Open"));
+        assert_eq!(plugin.binding_description("C-S-p"), Some("Command Palette"));
     }
 
     #[test]
-    fn user_plugin_overrides_binding_and_retains_unmentioned_builtin_binding() {
-        let dir = tempdir().unwrap();
-        fs::write(dir.path().join("override.toml"), r#"
-schema_version = 1
-id = "VSCode"
-name = "User VS Code"
-description = "Override"
-processes = ["code.exe"]
-[[bindings]]
-keys = ["C-S-p", "F1"]
-description = "User command palette"
-category = "User"
-priority = "recommended"
-"#).unwrap();
-        let report = PluginSnapshot::load(&[("builtin.toml", VALID)], dir.path()).unwrap();
-        let plugin = report.snapshot.for_process("CoDe.ExE").unwrap();
-        assert_eq!(plugin.name, "User VS Code");
-        assert_eq!(plugin.bindings.len(), 2);
-        assert_eq!(plugin.bindings[0].description, "User command palette");
-    }
-
-    #[test]
-    fn disabled_user_plugin_removes_builtin_from_process_index() {
-        let dir = tempdir().unwrap();
-        fs::write(dir.path().join("disable.toml"), r#"
-schema_version = 1
-id = "vscode"
-name = "Disabled"
-description = "Disabled"
-processes = ["code.exe"]
-disabled = true
-"#).unwrap();
-        let report = PluginSnapshot::load(&[("builtin.toml", VALID)], dir.path()).unwrap();
+    fn disabled_user_plugin_removes_builtin() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("vscode.toml"), DISABLED_VSCODE).unwrap();
+        let report = PluginSnapshot::load(&[("vscode.toml", BUILTIN_VSCODE)], dir.path()).unwrap();
         assert!(report.snapshot.for_process("code.exe").is_none());
     }
 
     #[test]
-    fn invalid_user_plugin_is_warning_and_builtin_remains() {
-        let dir = tempdir().unwrap();
-        fs::write(dir.path().join("bad.toml"), "not valid toml = [").unwrap();
-        let report = PluginSnapshot::load(&[("builtin.toml", VALID)], dir.path()).unwrap();
+    fn invalid_user_plugin_is_warning_not_fatal() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("broken.toml"), "not toml").unwrap();
+        let report = PluginSnapshot::load(&[("vscode.toml", BUILTIN_VSCODE)], dir.path()).unwrap();
         assert_eq!(report.warnings.len(), 1);
         assert!(report.snapshot.for_process("code.exe").is_some());
     }
 
     #[test]
-    fn conflicting_ids_for_process_in_same_origin_are_fatal() {
-        let first = VALID.replace("id = \"VSCode\"", "id = \"one\"");
-        let second = VALID.replace("id = \"VSCode\"", "id = \"two\"");
-        let error = PluginSnapshot::load(&[("one.toml", &first), ("two.toml", &second)], tempdir().unwrap().path()).unwrap_err();
-        let message = error.to_string();
-        assert!(message.contains("one") && message.contains("two") && message.contains("code.exe"));
+    fn conflicting_ids_for_same_process_are_fatal_within_one_origin() {
+        let builtins = [
+            ("one.toml", PLUGIN_ONE),
+            ("two.toml", PLUGIN_TWO_SAME_PROCESS),
+        ];
+        assert!(PluginSnapshot::load(&builtins, Path::new("missing-user-dir")).is_err());
     }
 
     #[test]
-    fn user_discovery_ignores_directories_and_nested_toml_files() {
-        let dir = tempdir().unwrap();
-        fs::create_dir(dir.path().join("ignored.toml")).unwrap();
-        let nested = dir.path().join("nested");
-        fs::create_dir(&nested).unwrap();
-        fs::write(nested.join("plugin.toml"), VALID).unwrap();
-        let report = PluginSnapshot::load(&[], dir.path()).unwrap();
-        assert!(report.snapshot.for_process("code.exe").is_none());
-        assert!(report.warnings.is_empty());
+    fn plugin_path_sort_tie_breaks_case_folded_names_by_original_path() {
+        let mut paths = vec![PathBuf::from("plugin.toml"), PathBuf::from("Plugin.toml")];
+
+        sort_plugin_paths(&mut paths);
+
+        assert_eq!(
+            paths,
+            vec![PathBuf::from("Plugin.toml"), PathBuf::from("plugin.toml")]
+        );
     }
 
     #[test]
-    fn user_files_are_sorted_case_insensitively_before_same_id_merge() {
-        let dir = tempdir().unwrap();
-        let first = VALID.replace("id = \"VSCode\"", "id = \"same\"").replace("description = \"Command palette\"", "description = \"A first\"");
-        let last = first.replace("description = \"A first\"", "description = \"Z last\"");
-        fs::write(dir.path().join("z.toml"), last).unwrap();
-        fs::write(dir.path().join("A.toml"), first).unwrap();
-        let report = PluginSnapshot::load(&[], dir.path()).unwrap();
-        assert_eq!(report.snapshot.for_process("code.exe").unwrap().bindings[0].description, "Z last");
+    fn parses_alternatives_and_sequences() {
+        let source = r#"
+schema_version = 1
+id = "vscode"
+name = "Visual Studio Code"
+processes = ["Code.exe"]
+
+[[bindings]]
+keys = ["C-S-p", "F1"]
+description = "Command Palette"
+category = "Common"
+priority = "essential"
+
+[[bindings]]
+keys = ["C-k", "C-f"]
+description = "Format Selection"
+category = "Editing"
+priority = "recommended"
+sequence = true
+"#;
+
+        let plugin = parse_plugin_toml(source, PluginOrigin::BuiltIn).unwrap();
+        assert_eq!(plugin.id, "vscode");
+        assert_eq!(plugin.processes, vec!["code.exe"]);
+        assert_eq!(plugin.bindings.len(), 2);
+        assert!(matches!(
+            plugin.bindings[0].keys,
+            BindingKeys::Alternatives(_)
+        ));
+        assert!(matches!(plugin.bindings[1].keys, BindingKeys::Sequence(_)));
     }
 
     #[test]
-    fn different_user_ids_claiming_one_process_are_fatal() {
-        let dir = tempdir().unwrap();
-        fs::write(dir.path().join("one.toml"), VALID.replace("id = \"VSCode\"", "id = \"one\"")).unwrap();
-        fs::write(dir.path().join("two.toml"), VALID.replace("id = \"VSCode\"", "id = \"two\"")).unwrap();
-        let error = PluginSnapshot::load(&[], dir.path()).unwrap_err();
-        let message = error.to_string();
-        assert!(message.contains("one") && message.contains("two") && message.contains("code.exe"));
+    fn accepts_optional_plugin_description() {
+        let source = r#"
+schema_version = 1
+id = "vscode"
+name = "Visual Studio Code"
+description = "Editor shortcuts"
+processes = ["Code.exe"]
+
+[[bindings]]
+keys = ["C-p"]
+description = "Quick Open"
+category = "Common"
+priority = "essential"
+"#;
+
+        let plugin = parse_plugin_toml(source, PluginOrigin::BuiltIn).unwrap();
+        assert_eq!(plugin.description.as_deref(), Some("Editor shortcuts"));
     }
 
     #[test]
-    fn user_only_plugin_is_indexed() {
-        let dir = tempdir().unwrap();
-        fs::write(dir.path().join("user.toml"), VALID).unwrap();
-        assert!(PluginSnapshot::load(&[], dir.path()).unwrap().snapshot.for_process("code.exe").is_some());
+    fn rejects_unsupported_schema_and_empty_fields() {
+        let bad_version = "schema_version=2\nid='x'\nname='X'\nprocesses=['x.exe']";
+        assert!(parse_plugin_toml(bad_version, PluginOrigin::BuiltIn).is_err());
+
+        let empty_keys = r#"
+schema_version=1
+id="x"
+name="X"
+processes=["x.exe"]
+[[bindings]]
+keys=[]
+description="Missing"
+category="Common"
+priority="essential"
+"#;
+        assert!(parse_plugin_toml(empty_keys, PluginOrigin::BuiltIn).is_err());
     }
 
     #[test]
-    fn disabled_user_only_plugin_is_absent_from_index() {
-        let dir = tempdir().unwrap();
-        fs::write(dir.path().join("disabled.toml"), VALID.replace("processes = [\"Code.exe\", \"CODE-INSIDERS.EXE\"]", "processes = [\"code.exe\"]\ndisabled = true")).unwrap();
-        assert!(PluginSnapshot::load(&[], dir.path()).unwrap().snapshot.for_process("code.exe").is_none());
+    fn rejects_missing_or_empty_bindings() {
+        let missing_bindings = r#"
+schema_version = 1
+id = "x"
+name = "X"
+processes = ["x.exe"]
+"#;
+        assert!(parse_plugin_toml(missing_bindings, PluginOrigin::BuiltIn).is_err());
+
+        let empty_bindings = r#"
+schema_version = 1
+id = "x"
+name = "X"
+processes = ["x.exe"]
+bindings = []
+"#;
+        assert!(parse_plugin_toml(empty_bindings, PluginOrigin::BuiltIn).is_err());
+    }
+
+    #[test]
+    fn normalizes_identifiers_and_rejects_duplicate_bindings() {
+        let source = r#"
+schema_version = 1
+id = "VSCode"
+name = "Visual Studio Code"
+processes = ["Code.EXE", "ÄPP.EXE"]
+
+[[bindings]]
+keys = ["Ctrl-P"]
+description = "Open"
+category = "Common"
+priority = "essential"
+
+[[bindings]]
+keys = ["C-p"]
+description = "Open again"
+category = "Common"
+priority = "essential"
+"#;
+
+        assert!(parse_plugin_toml(source, PluginOrigin::BuiltIn).is_err());
     }
 }

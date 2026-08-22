@@ -1,0 +1,140 @@
+schema_version = 1
+id = "excel"
+name = "Microsoft Excel"
+processes = ["EXCEL.EXE"]
+
+[[bindings]]
+keys = ["F2"]
+description = "编辑当前单元格"
+category = "编辑"
+priority = "essential"
+[[bindings]]
+keys = ["Ctrl+1"]
+description = "打开“设置单元格格式”"
+category = "格式"
+priority = "essential"
+[[bindings]]
+keys = ["Ctrl+T"]
+description = "将区域转换为表格"
+category = "工作表"
+priority = "recommended"
+[[bindings]]
+keys = ["Alt+="]
+description = "自动求和"
+category = "工作表"
+priority = "essential"
+[[bindings]]
+keys = ["Ctrl+;"]
+description = "插入当前日期"
+category = "编辑"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+Shift+;"]
+description = "插入当前时间"
+category = "编辑"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+Up"]
+description = "跳到连续数据区域上缘"
+category = "导航"
+priority = "essential"
+[[bindings]]
+keys = ["Ctrl+Down"]
+description = "跳到连续数据区域下缘"
+category = "导航"
+priority = "essential"
+[[bindings]]
+keys = ["Ctrl+Left"]
+description = "跳到连续数据区域左缘"
+category = "导航"
+priority = "essential"
+[[bindings]]
+keys = ["Ctrl+Right"]
+description = "跳到连续数据区域右缘"
+category = "导航"
+priority = "essential"
+[[bindings]]
+keys = ["Ctrl+Shift+Up"]
+description = "向上快速选择连续数据"
+category = "导航"
+priority = "essential"
+[[bindings]]
+keys = ["Ctrl+Shift+Down"]
+description = "向下快速选择连续数据"
+category = "导航"
+priority = "essential"
+[[bindings]]
+keys = ["Ctrl+Shift+Left"]
+description = "向左快速选择连续数据"
+category = "导航"
+priority = "essential"
+[[bindings]]
+keys = ["Ctrl+Shift+Right"]
+description = "向右快速选择连续数据"
+category = "导航"
+priority = "essential"
+[[bindings]]
+keys = ["Ctrl+Space"]
+description = "选择整列"
+category = "工作表"
+priority = "recommended"
+[[bindings]]
+keys = ["Shift+Space"]
+description = "选择整行"
+category = "工作表"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+D"]
+description = "向下填充"
+category = "编辑"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+R"]
+description = "向右填充"
+category = "编辑"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+PageUp"]
+description = "切换到上一工作表"
+category = "工作表"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+PageDown"]
+description = "切换到下一工作表"
+category = "工作表"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+`"]
+description = "显示／隐藏所有公式"
+category = "工作表"
+priority = "advanced"
+[[bindings]]
+keys = ["F4"]
+description = "编辑公式时切换绝对和相对引用"
+category = "编辑"
+priority = "essential"
+[[bindings]]
+keys = ["Ctrl+Shift++"]
+description = "插入单元格、行或列"
+category = "工作表"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+-"]
+description = "删除单元格、行或列"
+category = "工作表"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+G", "F5"]
+description = "跳转到指定单元格"
+category = "导航"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+Shift+L"]
+description = "开启／关闭筛选"
+category = "工作表"
+priority = "recommended"
+[[bindings]]
+keys = ["Alt+Enter"]
+description = "在单元格内换行"
+category = "编辑"
+priority = "recommended"

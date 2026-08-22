@@ -1,8 +1,8 @@
-use std::collections::HashMap;
-use crate::types::*;
-use crate::shortcut::format_shortcut;
 use crate::plugin::{BindingKeys, PluginDefinition};
+use crate::shortcut::format_shortcut;
+use crate::types::*;
 use anyhow::{bail, Result};
+use std::collections::HashMap;
 
 #[derive(Clone)]
 pub struct ShortcutRegistry {
@@ -12,29 +12,46 @@ pub struct ShortcutRegistry {
 
 impl ShortcutRegistry {
     pub fn from_plugin(plugin: &PluginDefinition) -> Result<Self> {
-        let mut registry = Self { globals: Node::new(None), applications: HashMap::new() };
+        let mut globals = Node::new(None);
         for binding in &plugin.bindings {
             match &binding.keys {
-                BindingKeys::Alternatives(keys) => for key in keys {
-                    insert_path(&mut registry.globals, std::slice::from_ref(key), binding.description.clone(), binding.metadata.clone())?;
-                },
-                BindingKeys::Sequence(keys) => insert_path(&mut registry.globals, keys, binding.description.clone(), binding.metadata.clone())?,
+                BindingKeys::Alternatives(keys) => {
+                    for key in keys {
+                        insert_binding(
+                            &mut globals,
+                            std::slice::from_ref(key),
+                            &binding.description,
+                            &binding.metadata,
+                        )?;
+                    }
+                }
+                BindingKeys::Sequence(keys) => {
+                    insert_binding(&mut globals, keys, &binding.description, &binding.metadata)?;
+                }
             }
         }
-        Ok(registry)
+        Ok(Self {
+            globals,
+            applications: HashMap::new(),
+        })
     }
 
     pub fn merge_from(&mut self, higher_priority: &ShortcutRegistry) {
-        merge_nodes(&mut self.globals, &higher_priority.globals);
-        for (name, node) in &higher_priority.applications {
-            self.applications.entry(name.clone()).and_modify(|current| merge_nodes(current, node)).or_insert_with(|| node.clone());
+        merge_node(&mut self.globals, &higher_priority.globals);
+        for (application, node) in &higher_priority.applications {
+            match self.applications.get_mut(application) {
+                Some(existing) => merge_node(existing, node),
+                None => {
+                    self.applications.insert(application.clone(), node.clone());
+                }
+            }
         }
     }
 
     pub fn all_entries(&self) -> Vec<DisplayEntry> {
         let mut entries = Vec::new();
-        flatten(&self.globals, &mut Vec::new(), &mut entries);
-        entries.sort_by(|a, b| a.priority.cmp(&b.priority).then_with(|| a.category.cmp(&b.category)).then_with(|| b.is_group.cmp(&a.is_group)).then_with(|| a.key.cmp(&b.key)));
+        collect_entries(&self.globals, &mut Vec::new(), &mut entries);
+        sort_entries(&mut entries);
         entries
     }
 
@@ -53,21 +70,24 @@ impl ShortcutRegistry {
             .iter()
             .map(|(shortcut_key, node)| {
                 let key_str = format_shortcut(shortcut_key);
-                DisplayEntry {
-                    key: key_str,
-                    desc: node.desc.clone().unwrap_or_default(),
-                    is_group: !node.children.is_empty(),
-                    category: node.metadata.as_ref().map_or_else(String::new, |m| m.category.clone()),
-                    priority: node.metadata.as_ref().map_or(BindingPriority::Advanced, |m| m.priority),
-                }
+                display_entry(key_str, node)
             })
             .collect();
 
-        // Sort: groups first, then by key
-        entries.sort_by(|a, b| {
-            b.is_group.cmp(&a.is_group).then_with(|| a.key.cmp(&b.key))
-        });
+        sort_entries(&mut entries);
 
+        entries
+    }
+
+    pub fn root_entries_for_modifiers(&self, modifiers: ModifierSet) -> Vec<DisplayEntry> {
+        let mut entries: Vec<DisplayEntry> = self
+            .globals
+            .children
+            .iter()
+            .filter(|(shortcut_key, _)| shortcut_key.modifiers == modifiers)
+            .map(|(shortcut_key, node)| display_entry(format_shortcut(shortcut_key), node))
+            .collect();
+        sort_entries(&mut entries);
         entries
     }
 
@@ -84,17 +104,9 @@ impl ShortcutRegistry {
         match current.children.get(&key) {
             Some(node) => {
                 if node.children.is_empty() {
-                    ResolveResult::Leaf(DisplayEntry {
-                        key: format_shortcut(&key),
-                        desc: node.desc.clone().unwrap_or_default(),
-                        is_group: false,
-                        category: node.metadata.as_ref().map_or_else(String::new, |m| m.category.clone()),
-                        priority: node.metadata.as_ref().map_or(BindingPriority::Advanced, |m| m.priority),
-                    })
+                    ResolveResult::Leaf(display_entry(format_shortcut(&key), node))
                 } else {
-                    let mut breadcrumb: Vec<String> = path.iter()
-                        .map(|k| format_shortcut(k))
-                        .collect();
+                    let mut breadcrumb: Vec<String> = path.iter().map(format_shortcut).collect();
                     breadcrumb.push(format_shortcut(&key));
                     ResolveResult::Group(breadcrumb)
                 }
@@ -104,47 +116,192 @@ impl ShortcutRegistry {
     }
 }
 
-fn insert_path(root: &mut Node, path: &[ShortcutKey], desc: String, metadata: BindingMetadata) -> Result<()> {
-    let mut node = root;
-    for (index, key) in path.iter().enumerate() {
-        node = node.children.entry(key.clone()).or_insert_with(|| Node::new(None));
-        if index + 1 < path.len() && (node.desc.is_some() || node.metadata.is_some()) { bail!("leaf/prefix ambiguity"); }
+fn insert_binding(
+    root: &mut Node,
+    keys: &[ShortcutKey],
+    description: &str,
+    metadata: &BindingMetadata,
+) -> Result<()> {
+    if keys.is_empty() {
+        bail!("Plugin binding keys cannot be empty");
     }
-    if !node.children.is_empty() { bail!("leaf/prefix ambiguity"); }
-    if node.desc.is_some() { bail!("duplicate binding path"); }
-    node.desc = Some(desc);
-    node.metadata = Some(metadata);
+
+    let mut current = root;
+    for (index, key) in keys.iter().enumerate() {
+        let is_last = index + 1 == keys.len();
+        if is_last {
+            match current.children.get(key) {
+                Some(existing) if !existing.children.is_empty() => {
+                    bail!(
+                        "Binding {} is both a leaf and a sequence prefix",
+                        format_shortcut(key)
+                    );
+                }
+                _ => {
+                    current.children.insert(
+                        key.clone(),
+                        Node::new_binding(description.to_string(), metadata.clone()),
+                    );
+                }
+            }
+        } else {
+            let next = current
+                .children
+                .entry(key.clone())
+                .or_insert_with(|| Node::new(None));
+            if next.desc.is_some() {
+                bail!(
+                    "Binding {} is both a leaf and a sequence prefix",
+                    format_shortcut(key)
+                );
+            }
+            update_group_metadata(next, metadata);
+            current = next;
+        }
+    }
     Ok(())
 }
 
-fn merge_nodes(lower: &mut Node, higher: &Node) {
-    for (key, higher_node) in &higher.children {
-        match lower.children.get_mut(key) {
-            Some(lower_node) if higher_node.is_leaf() => *lower_node = higher_node.clone(),
-            Some(lower_node) => merge_nodes(lower_node, higher_node),
-            None => { lower.children.insert(key.clone(), higher_node.clone()); }
+fn update_group_metadata(group: &mut Node, candidate: &BindingMetadata) {
+    let should_replace = match group.metadata.as_ref() {
+        None => true,
+        Some(existing) => {
+            candidate.priority < existing.priority
+                || (candidate.priority == existing.priority
+                    && candidate.category < existing.category)
+        }
+    };
+    if should_replace {
+        group.metadata = Some(candidate.clone());
+    }
+}
+
+fn merge_node(lower_priority: &mut Node, higher_priority: &Node) {
+    if higher_priority.children.is_empty() {
+        *lower_priority = higher_priority.clone();
+        return;
+    }
+    if lower_priority.children.is_empty() && lower_priority.desc.is_some() {
+        *lower_priority = higher_priority.clone();
+        return;
+    }
+
+    if higher_priority.desc.is_some() {
+        lower_priority.desc = higher_priority.desc.clone();
+    }
+    if higher_priority.metadata.is_some() {
+        lower_priority.metadata = higher_priority.metadata.clone();
+    }
+    if higher_priority.group_name.is_some() {
+        lower_priority.group_name = higher_priority.group_name.clone();
+    }
+    for (key, higher_child) in &higher_priority.children {
+        match lower_priority.children.get_mut(key) {
+            Some(lower_child) => merge_node(lower_child, higher_child),
+            None => {
+                lower_priority
+                    .children
+                    .insert(key.clone(), higher_child.clone());
+            }
         }
     }
 }
 
-fn flatten(node: &Node, path: &mut Vec<String>, output: &mut Vec<DisplayEntry>) {
-    let mut children: Vec<_> = node.children.iter().collect();
-    children.sort_by_key(|(key, _)| format_shortcut(key));
-    for (key, child) in children {
+fn collect_entries(node: &Node, path: &mut Vec<String>, entries: &mut Vec<DisplayEntry>) {
+    for (key, child) in &node.children {
         path.push(format_shortcut(key));
-        if child.is_leaf() {
-            let metadata = child.metadata.as_ref();
-            output.push(DisplayEntry { key: path.join(", "), desc: child.desc.clone().unwrap_or_default(), is_group: false, category: metadata.map_or_else(String::new, |m| m.category.clone()), priority: metadata.map_or(BindingPriority::Advanced, |m| m.priority) });
-        } else { flatten(child, path, output); }
+        if child.children.is_empty() {
+            entries.push(display_entry(path.join(", "), child));
+        } else {
+            collect_entries(child, path, entries);
+        }
         path.pop();
     }
 }
 
+fn display_entry(key: String, node: &Node) -> DisplayEntry {
+    let metadata = node.metadata.as_ref();
+    DisplayEntry {
+        key,
+        desc: node.desc.clone().unwrap_or_default(),
+        is_group: !node.children.is_empty(),
+        category: metadata
+            .map(|value| value.category.clone())
+            .unwrap_or_default(),
+        priority: metadata
+            .map(|value| value.priority)
+            .unwrap_or(BindingPriority::Advanced),
+    }
+}
+
+fn sort_entries(entries: &mut [DisplayEntry]) {
+    entries.sort_by(|left, right| {
+        left.priority
+            .cmp(&right.priority)
+            .then_with(|| left.category.cmp(&right.category))
+            .then_with(|| right.is_group.cmp(&left.is_group))
+            .then_with(|| left.key.cmp(&right.key))
+    });
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::plugin::{parse_plugin_toml, PluginOrigin};
+    use crate::shortcut::parse_shortcut;
+
+    const TEST_PLUGIN: &str = r#"
+schema_version = 1
+id = "editor"
+name = "Editor"
+processes = ["editor.exe"]
+
+[[bindings]]
+keys = ["C-S-p", "F1"]
+description = "Command Palette"
+category = "Navigation"
+priority = "essential"
+
+[[bindings]]
+keys = ["C-k", "C-f"]
+description = "Format Selection"
+category = "Editing"
+priority = "recommended"
+sequence = true
+"#;
+
+    fn key(value: &str) -> ShortcutKey {
+        parse_shortcut(value).unwrap()
+    }
+
+    fn registry_with(
+        key_label: &str,
+        description: &str,
+        category: &str,
+        priority: BindingPriority,
+    ) -> ShortcutRegistry {
+        let plugin = format!(
+            r#"
+schema_version = 1
+id = "test"
+name = "Test"
+processes = ["test.exe"]
+
+[[bindings]]
+keys = ["{key_label}"]
+description = "{description}"
+category = "{category}"
+priority = "{priority}"
+"#,
+            priority = match priority {
+                BindingPriority::Essential => "essential",
+                BindingPriority::Recommended => "recommended",
+                BindingPriority::Advanced => "advanced",
+            }
+        );
+        ShortcutRegistry::from_plugin(&parse_plugin_toml(&plugin, PluginOrigin::BuiltIn).unwrap())
+            .unwrap()
+    }
 
     fn build_test_registry() -> ShortcutRegistry {
         let mut root = Node::new(None);
@@ -153,7 +310,8 @@ mod tests {
             modifiers: ModifierSet::CTRL,
             key: Key::C,
         };
-        root.children.insert(copy_key, Node::new(Some("Copy".to_string())));
+        root.children
+            .insert(copy_key, Node::new(Some("Copy".to_string())));
 
         let git_key = ShortcutKey {
             modifiers: ModifierSet::empty(),
@@ -165,13 +323,17 @@ mod tests {
             modifiers: ModifierSet::empty(),
             key: Key::S,
         };
-        git_node.children.insert(status_key, Node::new(Some("Git status".to_string())));
+        git_node
+            .children
+            .insert(status_key, Node::new(Some("Git status".to_string())));
 
         let commit_key = ShortcutKey {
             modifiers: ModifierSet::empty(),
             key: Key::C,
         };
-        git_node.children.insert(commit_key, Node::new(Some("Git commit".to_string())));
+        git_node
+            .children
+            .insert(commit_key, Node::new(Some("Git commit".to_string())));
 
         root.children.insert(git_key, git_node);
 
@@ -251,83 +413,210 @@ mod tests {
     }
 
     #[test]
-    fn compiles_alternatives_and_sequences_and_flattens_labels() {
-        let source = r#"
-schema_version = 1
-id = "demo"
-name = "Demo"
-description = "Demo"
-processes = ["demo.exe"]
-[[bindings]]
-keys = ["C-S-p", "F1"]
-description = "Palette"
-category = "Navigation"
-priority = "essential"
-[[bindings]]
-keys = ["C-k", "C-f"]
-description = "Format"
-category = "Editing"
-priority = "recommended"
-sequence = true
-"#;
-        let plugin = parse_plugin_toml(source, PluginOrigin::BuiltIn).unwrap();
-        let entries = ShortcutRegistry::from_plugin(&plugin).unwrap().all_entries();
-        assert_eq!(entries.iter().map(|entry| entry.key.as_str()).collect::<Vec<_>>(), vec!["C-S-p", "F1", "C-k, C-f"]);
-        assert_eq!(entries[0].category, "Navigation");
+    fn compiles_alternative_and_sequence_bindings() {
+        let plugin = parse_plugin_toml(TEST_PLUGIN, PluginOrigin::BuiltIn).unwrap();
+        let registry = ShortcutRegistry::from_plugin(&plugin).unwrap();
+
+        assert!(matches!(
+            registry.resolve(&[], key("C-S-p")),
+            ResolveResult::Leaf(_)
+        ));
+        assert!(matches!(
+            registry.resolve(&[], key("F1")),
+            ResolveResult::Leaf(_)
+        ));
+        assert!(matches!(
+            registry.resolve(&[], key("C-k")),
+            ResolveResult::Group(_)
+        ));
+        assert!(matches!(
+            registry.resolve(&[key("C-k")], key("C-f")),
+            ResolveResult::Leaf(_)
+        ));
     }
 
     #[test]
-    fn rejects_leaf_prefix_and_merges_higher_priority_paths() {
-        let lower = parse_plugin_toml(r#"
-schema_version=1
-id="lower"
-name="Lower"
-description="Lower"
-processes=["x"]
+    fn higher_priority_registry_replaces_same_path_only() {
+        let mut global = registry_with("C-p", "Global", "Windows", BindingPriority::Recommended);
+        global
+            .globals
+            .children
+            .insert(key("C-c"), Node::new(Some("Copy".to_string())));
+        let app = registry_with(
+            "C-p",
+            "Quick Open",
+            "Navigation",
+            BindingPriority::Essential,
+        );
+
+        global.merge_from(&app);
+
+        assert_eq!(leaf_desc(&global, "C-p"), "Quick Open");
+        assert_eq!(leaf_desc(&global, "C-c"), "Copy");
+    }
+
+    #[test]
+    fn all_entries_flattens_sequences_with_full_key_labels() {
+        let plugin = parse_plugin_toml(TEST_PLUGIN, PluginOrigin::BuiltIn).unwrap();
+        let registry = ShortcutRegistry::from_plugin(&plugin).unwrap();
+        let entries = registry.all_entries();
+
+        assert!(entries.iter().any(|entry| entry.key == "C-k, C-f"));
+    }
+
+    #[test]
+    fn sequence_prefix_inherits_its_binding_metadata_for_display() {
+        let plugin = parse_plugin_toml(TEST_PLUGIN, PluginOrigin::BuiltIn).unwrap();
+        let registry = ShortcutRegistry::from_plugin(&plugin).unwrap();
+
+        let prefix = registry
+            .entries_at(&[])
+            .into_iter()
+            .find(|entry| entry.key == "C-k")
+            .unwrap();
+
+        assert!(prefix.is_group);
+        assert_eq!(prefix.category, "Editing");
+        assert_eq!(prefix.priority, BindingPriority::Recommended);
+    }
+
+    #[test]
+    fn shared_sequence_prefix_uses_highest_priority_then_category_metadata() {
+        let plugin = parse_plugin_toml(
+            r#"
+schema_version = 1
+id = "shared-prefix"
+name = "Shared Prefix"
+processes = ["shared-prefix.exe"]
+
 [[bindings]]
-keys=["C-S-p"]
-description="Old"
-category="Global"
-priority="advanced"
+keys = ["C-k", "C-z"]
+description = "Zebra"
+category = "Zebra"
+priority = "essential"
+sequence = true
+
 [[bindings]]
-keys=["F1"]
-description="Keep"
-category="Global"
-priority="advanced"
-"#, PluginOrigin::BuiltIn).unwrap();
-        let higher = parse_plugin_toml(r#"
-schema_version=1
-id="higher"
-name="Higher"
-description="Higher"
-processes=["x"]
+keys = ["C-k", "C-a"]
+description = "Alpha"
+category = "Alpha"
+priority = "essential"
+sequence = true
+
 [[bindings]]
-keys=["C-S-p"]
-description="New"
-category="App"
-priority="essential"
-"#, PluginOrigin::BuiltIn).unwrap();
-        let mut registry = ShortcutRegistry::from_plugin(&lower).unwrap();
-        registry.merge_from(&ShortcutRegistry::from_plugin(&higher).unwrap());
-        assert_eq!(registry.all_entries().iter().map(|entry| entry.desc.as_str()).collect::<Vec<_>>(), vec!["New", "Keep"]);
-        let ambiguous = parse_plugin_toml(r#"
-schema_version=1
-id="bad"
-name="Bad"
-description="Bad"
-processes=["x"]
+keys = ["C-k", "C-r"]
+description = "Recommended"
+category = "Recommended"
+priority = "recommended"
+sequence = true
+"#,
+            PluginOrigin::BuiltIn,
+        )
+        .unwrap();
+        let registry = ShortcutRegistry::from_plugin(&plugin).unwrap();
+
+        let prefix = registry
+            .entries_at(&[])
+            .into_iter()
+            .find(|entry| entry.key == "C-k")
+            .unwrap();
+
+        assert_eq!(prefix.category, "Alpha");
+        assert_eq!(prefix.priority, BindingPriority::Essential);
+    }
+
+    #[test]
+    fn display_entries_sort_by_priority_category_group_and_key() {
+        let mut root = Node::new(None);
+        root.children.insert(
+            key("C-z"),
+            Node::new_binding(
+                "Recommended".to_string(),
+                BindingMetadata {
+                    category: "A".to_string(),
+                    priority: BindingPriority::Recommended,
+                },
+            ),
+        );
+        let mut group = Node::new_binding(
+            "Group".to_string(),
+            BindingMetadata {
+                category: "B".to_string(),
+                priority: BindingPriority::Essential,
+            },
+        );
+        group.children.insert(
+            key("C-a"),
+            Node::new_binding(
+                "Child".to_string(),
+                BindingMetadata {
+                    category: "B".to_string(),
+                    priority: BindingPriority::Essential,
+                },
+            ),
+        );
+        root.children.insert(key("C-y"), group);
+        root.children.insert(
+            key("C-x"),
+            Node::new_binding(
+                "Essential".to_string(),
+                BindingMetadata {
+                    category: "A".to_string(),
+                    priority: BindingPriority::Essential,
+                },
+            ),
+        );
+        let registry = ShortcutRegistry {
+            globals: root,
+            applications: HashMap::new(),
+        };
+
+        let entries = registry.entries_at(&[]);
+
+        assert_eq!(
+            entries
+                .iter()
+                .map(|entry| entry.key.as_str())
+                .collect::<Vec<_>>(),
+            vec!["C-x", "C-y", "C-z"]
+        );
+        assert_eq!(entries[0].category, "A");
+        assert_eq!(entries[0].priority, BindingPriority::Essential);
+    }
+
+    #[test]
+    fn rejects_leaf_prefix_ambiguity() {
+        let plugin = parse_plugin_toml(
+            r#"
+schema_version = 1
+id = "ambiguous"
+name = "Ambiguous"
+processes = ["ambiguous.exe"]
+
 [[bindings]]
-keys=["C-k"]
-description="Leaf"
-category="X"
-priority="advanced"
+keys = ["C-k"]
+description = "Prefix"
+category = "Editing"
+priority = "recommended"
+
 [[bindings]]
-keys=["C-k", "C-f"]
-description="Path"
-category="X"
-priority="advanced"
-sequence=true
-"#, PluginOrigin::BuiltIn).unwrap();
-        assert!(ShortcutRegistry::from_plugin(&ambiguous).is_err());
+keys = ["C-k", "C-f"]
+description = "Child"
+category = "Editing"
+priority = "recommended"
+sequence = true
+"#,
+            PluginOrigin::BuiltIn,
+        )
+        .unwrap();
+
+        assert!(ShortcutRegistry::from_plugin(&plugin).is_err());
+    }
+
+    fn leaf_desc(registry: &ShortcutRegistry, key_label: &str) -> String {
+        match registry.resolve(&[], key(key_label)) {
+            ResolveResult::Leaf(entry) => entry.desc,
+            _ => panic!("Expected leaf"),
+        }
     }
 }

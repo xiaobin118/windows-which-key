@@ -1,11 +1,15 @@
-use std::collections::HashMap;
-use std::fs;
-use std::path::PathBuf;
-use anyhow::{Context, Result};
-use serde::Deserialize;
-use crate::types::*;
 use crate::registry::ShortcutRegistry;
 use crate::shortcut::parse_shortcut;
+use crate::types::*;
+use anyhow::{Context, Result};
+use serde::Deserialize;
+use std::collections::HashMap;
+use std::fs;
+use std::path::Path;
+use std::path::PathBuf;
+use std::sync::{Arc, RwLock};
+
+use crate::plugin::{PluginLoadReport, PluginSnapshot, PluginWarning};
 
 #[derive(Debug, Deserialize)]
 struct RawConfig {
@@ -38,6 +42,74 @@ pub struct Config {
     path: PathBuf,
 }
 
+/// Immutable configuration published as a single unit to runtime consumers.
+pub struct ConfigurationSnapshot {
+    pub global: ShortcutRegistry,
+    pub plugins: Arc<PluginSnapshot>,
+}
+
+/// Publishes configuration reloads atomically. Failed reloads leave the live snapshot untouched.
+pub struct ConfigurationService {
+    current: RwLock<Arc<ConfigurationSnapshot>>,
+}
+
+impl ConfigurationService {
+    pub fn new(snapshot: ConfigurationSnapshot) -> Self {
+        Self {
+            current: RwLock::new(Arc::new(snapshot)),
+        }
+    }
+
+    pub fn from_sources(
+        global_source: &str,
+        built_ins: &[(&str, &str)],
+        user_dir: &Path,
+    ) -> Result<(Self, Vec<PluginWarning>)> {
+        let (snapshot, warnings) = load_snapshot(global_source, built_ins, user_dir)?;
+        Ok((Self::new(snapshot), warnings))
+    }
+
+    pub fn current(&self) -> Arc<ConfigurationSnapshot> {
+        Arc::clone(&self.current.read().expect("configuration lock poisoned"))
+    }
+
+    pub fn reload(
+        &self,
+        global_source: &str,
+        built_ins: &[(&str, &str)],
+        user_dir: &Path,
+    ) -> Result<Vec<PluginWarning>> {
+        let (snapshot, warnings) = load_snapshot(global_source, built_ins, user_dir)?;
+        *self.current.write().expect("configuration lock poisoned") = Arc::new(snapshot);
+        Ok(warnings)
+    }
+
+    pub fn reload_from_sources(
+        &self,
+        global_source: &str,
+        built_ins: &[(&str, &str)],
+        user_dir: &Path,
+    ) -> Result<Vec<PluginWarning>> {
+        self.reload(global_source, built_ins, user_dir)
+    }
+}
+
+fn load_snapshot(
+    global_source: &str,
+    built_ins: &[(&str, &str)],
+    user_dir: &Path,
+) -> Result<(ConfigurationSnapshot, Vec<PluginWarning>)> {
+    let global = parse_toml(global_source)?;
+    let PluginLoadReport { snapshot, warnings } = PluginSnapshot::load(built_ins, user_dir)?;
+    Ok((
+        ConfigurationSnapshot {
+            global,
+            plugins: snapshot,
+        },
+        warnings,
+    ))
+}
+
 impl Config {
     pub fn load(path: PathBuf) -> Result<Self> {
         let content = fs::read_to_string(&path)
@@ -55,8 +127,7 @@ impl Config {
 }
 
 pub fn parse_toml(content: &str) -> Result<ShortcutRegistry> {
-    let raw: RawConfig = toml::from_str(content)
-        .context("Failed to parse TOML")?;
+    let raw: RawConfig = toml::from_str(content).context("Failed to parse TOML")?;
 
     let globals = if let Some(globals) = raw.globals {
         build_node_from_keymap(globals)?
@@ -71,7 +142,10 @@ pub fn parse_toml(content: &str) -> Result<ShortcutRegistry> {
         }
     }
 
-    Ok(ShortcutRegistry { globals, applications })
+    Ok(ShortcutRegistry {
+        globals,
+        applications,
+    })
 }
 
 fn build_node_from_keymap(keymap: RawKeymap) -> Result<Node> {
@@ -82,12 +156,12 @@ fn build_node_from_keymap(keymap: RawKeymap) -> Result<Node> {
         let shortcut_key = parse_shortcut(&key_str)?;
         let child_node = if let Some(group_name) = binding.group {
             // This is a group reference, create a group node
-            let mut group_node = Node::new(Some(binding.desc));
+            let mut group_node = Node::new_binding(binding.desc, windows_metadata());
             group_node.group_name = Some(group_name);
             group_node
         } else {
             // This is a leaf binding
-            Node::new_binding(binding.desc, BindingMetadata { category: "Windows".into(), priority: BindingPriority::Recommended })
+            Node::new_binding(binding.desc, windows_metadata())
         };
         node.children.insert(shortcut_key, child_node);
     }
@@ -97,7 +171,7 @@ fn build_node_from_keymap(keymap: RawKeymap) -> Result<Node> {
         for (group_name, group_data) in groups {
             let group_node = build_node_from_group(group_name.clone(), group_data)?;
             // Find the group reference in children and merge
-            for (_key, child) in node.children.iter_mut() {
+            for child in node.children.values_mut() {
                 if child.group_name.as_ref() == Some(&group_name) {
                     // Merge the group's children into this node
                     for (k, v) in group_node.children {
@@ -119,11 +193,11 @@ fn build_node_from_group(name: String, group: RawGroup) -> Result<Node> {
     for (key_str, binding) in group.bindings {
         let shortcut_key = parse_shortcut(&key_str)?;
         let child_node = if let Some(group_name) = binding.group {
-            let mut group_node = Node::new(Some(binding.desc));
+            let mut group_node = Node::new_binding(binding.desc, windows_metadata());
             group_node.group_name = Some(group_name);
             group_node
         } else {
-            Node::new_binding(binding.desc, BindingMetadata { category: "Windows".into(), priority: BindingPriority::Recommended })
+            Node::new_binding(binding.desc, windows_metadata())
         };
         node.children.insert(shortcut_key, child_node);
     }
@@ -132,7 +206,7 @@ fn build_node_from_group(name: String, group: RawGroup) -> Result<Node> {
     if let Some(groups) = group.groups {
         for (group_name, group_data) in groups {
             let group_node = build_node_from_group(group_name.clone(), group_data)?;
-            for (_key, child) in node.children.iter_mut() {
+            for child in node.children.values_mut() {
                 if child.group_name.as_ref() == Some(&group_name) {
                     for (k, v) in group_node.children {
                         child.children.insert(k, v);
@@ -146,6 +220,12 @@ fn build_node_from_group(name: String, group: RawGroup) -> Result<Node> {
     Ok(node)
 }
 
+fn windows_metadata() -> BindingMetadata {
+    BindingMetadata {
+        category: "Windows".to_string(),
+        priority: BindingPriority::Recommended,
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -165,8 +245,15 @@ mod tests {
         let copy = entries.iter().find(|e| e.desc == "Copy").unwrap();
         assert_eq!(copy.key, "C-c");
         assert!(!copy.is_group);
-        let copy_node = registry.globals.children.values().find(|node| node.desc.as_deref() == Some("Copy")).unwrap();
-        let metadata = copy_node.metadata.as_ref().unwrap();
+        let metadata = registry
+            .globals
+            .children
+            .values()
+            .next()
+            .unwrap()
+            .metadata
+            .as_ref()
+            .unwrap();
         assert_eq!(metadata.category, "Windows");
         assert_eq!(metadata.priority, BindingPriority::Recommended);
     }
@@ -213,7 +300,7 @@ mod tests {
             modifiers: ModifierSet::empty(),
             key: Key::G,
         };
-        let git_entries = registry.entries_at(&[git_key.clone()]);
+        let git_entries = registry.entries_at(std::slice::from_ref(&git_key));
         assert_eq!(git_entries.len(), 1);
         assert!(git_entries[0].is_group);
 
