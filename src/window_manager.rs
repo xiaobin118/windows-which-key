@@ -1,15 +1,21 @@
 use anyhow::{Context, Result};
-use windows::Win32::Foundation::{HWND, HINSTANCE, LPARAM, LRESULT, WPARAM};
+use windows::core::w;
+use windows::Win32::Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::Graphics::Dwm::{
-    DwmSetWindowAttribute, DWMWA_SYSTEMBACKDROP_TYPE, DWMSBT_TRANSIENTWINDOW,
+    DwmSetWindowAttribute, DWMSBT_TRANSIENTWINDOW, DWMWA_SYSTEMBACKDROP_TYPE,
     DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
 };
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::WindowsAndMessaging::*;
-use windows::core::w;
 
 pub struct WindowManager {
     hwnd: Option<HWND>,
+}
+
+impl Default for WindowManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 unsafe extern "system" fn overlay_window_proc(
@@ -51,7 +57,10 @@ impl WindowManager {
                 class_name,
                 w!("Which-Key"),
                 WS_POPUP,
-                0, 0, 400, 300,
+                0,
+                0,
+                400,
+                300,
                 None,
                 None,
                 instance,
@@ -109,8 +118,10 @@ impl WindowManager {
             SetWindowPos(
                 hwnd,
                 None,
-                x, y,
-                width, height,
+                x,
+                y,
+                width,
+                height,
                 SWP_SHOWWINDOW | SWP_NOACTIVATE,
             )
             .context("Failed to show window")?;

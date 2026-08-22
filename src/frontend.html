@@ -145,6 +145,13 @@
             padding-left: 8px;
         }
 
+        .app-name, .category { font-weight: 700; margin: 8px 4px; }
+        .app-name { color: #edf1ff; font-size: 14px; }
+        .category { color: #a9c5ff; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
+        .entry.essential .desc { font-weight: 700; }
+        .entry.recommended .desc { font-weight: 500; }
+        .entry.advanced .desc { opacity: 0.72; }
+
         .footer {
             display: flex;
             justify-content: flex-end;
@@ -183,6 +190,7 @@
             </div>
             <div class="context-chip">ACTIVE · GLOBALS</div>
         </div>
+        <div class="app-name" id="app-name"></div>
         <div class="breadcrumb" id="breadcrumb"></div>
         <div class="entries" id="entries"></div>
         <div class="footer">ESC to close</div>
@@ -192,8 +200,9 @@
         const container = document.getElementById('container');
         const breadcrumbEl = document.getElementById('breadcrumb');
         const entriesEl = document.getElementById('entries');
+        const appNameEl = document.getElementById('app-name');
 
-        function renderEntries(entries, breadcrumb) {
+        function renderEntries(entries, breadcrumb, clear = true) {
             // Update breadcrumb
             if (breadcrumb.length > 0) {
                 breadcrumbEl.replaceChildren();
@@ -215,10 +224,10 @@
             }
 
             // Clear and render entries
-            entriesEl.replaceChildren();
+            if (clear) entriesEl.replaceChildren();
             entries.forEach(entry => {
                 const div = document.createElement('div');
-                div.className = 'entry' + (entry.is_group ? ' group' : '');
+                div.className = 'entry ' + (entry.priority || 'recommended') + (entry.is_group ? ' group' : '');
 
                 const keySpan = document.createElement('span');
                 keySpan.className = 'key';
@@ -239,6 +248,23 @@
                 }
 
                 entriesEl.appendChild(div);
+            });
+        }
+
+        function renderGroupedEntries(entries) {
+            entriesEl.replaceChildren();
+            const categories = new Map();
+            entries.forEach(entry => {
+                const category = entry.category || 'Other';
+                if (!categories.has(category)) categories.set(category, []);
+                categories.get(category).push(entry);
+            });
+            categories.forEach((categoryEntries, category) => {
+                const heading = document.createElement('div');
+                heading.className = 'category';
+                heading.textContent = category;
+                entriesEl.appendChild(heading);
+                renderEntries(categoryEntries, [], false);
             });
         }
 
@@ -269,11 +295,20 @@
         function handleMessage(data) {
             switch (data.type) {
                 case 'show':
+                    appNameEl.style.display = 'none';
                     show();
                     renderEntries(data.entries || [], data.breadcrumb || []);
                     break;
                 case 'update':
+                    appNameEl.style.display = 'none';
                     renderEntries(data.entries || [], data.breadcrumb || []);
+                    break;
+                case 'showAll':
+                    appNameEl.textContent = data.appName || 'Windows';
+                    appNameEl.style.display = 'block';
+                    breadcrumbEl.style.display = 'none';
+                    show();
+                    renderGroupedEntries(data.entries || []);
                     break;
                 case 'hide':
                     hide();

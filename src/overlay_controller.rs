@@ -1,14 +1,11 @@
-use anyhow::{Context, Result};
 use crate::types::UiCommand;
-use crate::window_manager::WindowManager;
 use crate::webview_bridge::WebView2Bridge;
 use crate::webview_bridge::FRONTEND_HTML;
+use crate::window_manager::WindowManager;
+use anyhow::{Context, Result};
 
-const DEFAULT_WIDTH: i32 = 600;
+const DEFAULT_WIDTH: i32 = 400;
 const DEFAULT_HEIGHT: i32 = 300;
-const ROW_HEIGHT: i32 = 38;
-const HEADER_HEIGHT: i32 = 48;
-const MAX_HEIGHT: i32 = 900;
 
 pub struct OverlayController {
     window_manager: WindowManager,
@@ -19,34 +16,35 @@ pub struct OverlayController {
 impl OverlayController {
     pub fn new() -> Result<Self> {
         let mut window_manager = WindowManager::new();
-        let hwnd = window_manager.create_window()
+        let hwnd = window_manager
+            .create_window()
             .context("Failed to create overlay window")?;
 
-        // Initialize WebView2 bridge (may fail gracefully on stub)
-        let webview_bridge = WebView2Bridge::new(hwnd).ok();
-
-        // Load frontend HTML
-        if let Some(ref bridge) = webview_bridge {
-            bridge.load_html(FRONTEND_HTML).ok();
-        }
+        let webview_bridge = WebView2Bridge::new(hwnd).context("初始化 WebView2 失败")?;
+        webview_bridge
+            .load_html(FRONTEND_HTML)
+            .context("加载覆盖层 HTML 失败")?;
 
         Ok(OverlayController {
             window_manager,
-            webview_bridge,
+            webview_bridge: Some(webview_bridge),
             window_size: (DEFAULT_WIDTH, DEFAULT_HEIGHT),
         })
     }
 
     pub fn execute(&mut self, cmd: UiCommand) -> Result<()> {
         match cmd {
-            UiCommand::Show { position, entries, breadcrumb } => {
+            UiCommand::Show {
+                position,
+                entries,
+                breadcrumb,
+            } => {
                 log::debug!("Show overlay at {:?}, {} entries", position, entries.len());
-                self.window_size = self.size_for_entries(entries.len());
                 let (x, y) = self.adjust_position(position);
-                self.window_manager.show(x, y, self.window_size.0, self.window_size.1)?;
+                self.window_manager
+                    .show(x, y, self.window_size.0, self.window_size.1)?;
 
                 if let Some(ref bridge) = self.webview_bridge {
-                    bridge.set_bounds(self.window_size.0, self.window_size.1)?;
                     bridge.send_command(&UiCommand::Show {
                         position,
                         entries,
@@ -54,19 +52,23 @@ impl OverlayController {
                     })?;
                 }
             }
-            UiCommand::UpdateEntries { entries, breadcrumb } => {
+            UiCommand::UpdateEntries {
+                entries,
+                breadcrumb,
+            } => {
                 log::debug!("Update entries: {} entries", entries.len());
-                self.window_size = self.size_for_entries(entries.len());
-                if self.window_manager.hwnd().is_some() {
-                    let (x, y) = self.adjust_position((0, 0));
-                    self.window_manager.show(x, y, self.window_size.0, self.window_size.1)?;
-                }
                 if let Some(ref bridge) = self.webview_bridge {
-                    bridge.set_bounds(self.window_size.0, self.window_size.1)?;
                     bridge.send_command(&UiCommand::UpdateEntries {
                         entries,
                         breadcrumb,
                     })?;
+                }
+            }
+            UiCommand::ShowAll { app_name, entries } => {
+                self.window_manager
+                    .show(100, 100, self.window_size.0, self.window_size.1)?;
+                if let Some(ref bridge) = self.webview_bridge {
+                    bridge.send_command(&UiCommand::ShowAll { app_name, entries })?;
                 }
             }
             UiCommand::Hide => {
@@ -91,10 +93,5 @@ impl OverlayController {
         let max_y = screen_h - self.window_size.1;
 
         (x.min(max_x).max(0), y.min(max_y).max(0))
-    }
-
-    fn size_for_entries(&self, entry_count: usize) -> (i32, i32) {
-        let height = HEADER_HEIGHT + (entry_count as i32 * ROW_HEIGHT);
-        (DEFAULT_WIDTH, height.clamp(DEFAULT_HEIGHT, MAX_HEIGHT))
     }
 }

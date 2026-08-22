@@ -42,6 +42,18 @@ Configuration reloads must build a validated immutable snapshot before replaceme
 
 The detailed approved design is in `docs/superpowers/specs/2026-08-21-application-plugin-system-design.md`.
 
-## Current Scope Boundary
+The approved implementation plan is in `docs/superpowers/plans/2026-08-21-application-plugin-system.md`. The preserved source list for the first built-in plugins is in `docs/references/initial-built-in-shortcuts.md`.
 
-The design is approved, but implementation has not started. Before implementation, create a detailed plan and preserve unrelated existing working-tree changes.
+## Implementation Status
+
+- Plugin schema/loading: complete and covered by automated tests.
+- Foreground application resolution: complete for executable-name matching.
+- Show-all and modifier interactions: complete.
+- Built-in plugins: VS Code, Word, Excel, and PowerPoint.
+- Automated verification: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, and `cargo test --all-targets` passed offline with the E:\\rust toolchain homes (65 library tests and 4 binary tests).
+- Final review fixes include real modifier-aware sequence resolution, exact root-entry filtering, optional plugin descriptions, and a keyboard-hook install/uninstall handshake that reports failures and joins its worker thread.
+- Manual Windows application smoke: pending for VS Code, Office, and multi-monitor cases.
+
+## Known Verification Gap
+
+The Windows smoke matrix requires installed target applications and an interactive Windows desktop. Do not record it as passed until those manual cases have been run.

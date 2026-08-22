@@ -1,0 +1,243 @@
+use anyhow::{bail, Result};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ThemeConfig {
+    pub background: String,
+    pub background_opacity: f64,
+    pub border: String,
+    pub border_opacity: f64,
+    pub accent: String,
+    pub text_primary: String,
+    pub text_secondary: String,
+    pub radius: u8,
+    pub blur: u8,
+    pub row_spacing: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ThemeFile {
+    pub theme: ThemeConfig,
+}
+
+impl ThemeFile {
+    pub fn from_toml(source: &str) -> Result<Self> {
+        Ok(toml::from_str(source)?)
+    }
+
+    pub fn to_toml(&self) -> Result<String> {
+        Ok(toml::to_string_pretty(self)?)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ThemeWarning {
+    pub field: &'static str,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ThemeFieldError {
+    pub field: &'static str,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ThemeValidationError {
+    pub fields: Vec<ThemeFieldError>,
+}
+
+impl std::fmt::Display for ThemeValidationError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let fields = self
+            .fields
+            .iter()
+            .map(|error| error.field)
+            .collect::<Vec<_>>()
+            .join(", ");
+        write!(formatter, "invalid theme fields: {fields}")
+    }
+}
+
+impl std::error::Error for ThemeValidationError {}
+
+impl ThemeConfig {
+    pub fn default_theme() -> Self {
+        Self {
+            background: "#0B0F1F".to_string(),
+            background_opacity: 0.92,
+            border: "#91A4FF".to_string(),
+            border_opacity: 0.20,
+            accent: "#618CFF".to_string(),
+            text_primary: "#EDF1FF".to_string(),
+            text_secondary: "#D2DCFF".to_string(),
+            radius: 20,
+            blur: 24,
+            row_spacing: 6,
+        }
+    }
+
+    pub fn validate(&self) -> Result<Vec<ThemeWarning>> {
+        let mut errors = Vec::new();
+        for (field, color) in [
+            ("background", &self.background),
+            ("border", &self.border),
+            ("accent", &self.accent),
+            ("text_primary", &self.text_primary),
+            ("text_secondary", &self.text_secondary),
+        ] {
+            if !is_hex_color(color) {
+                errors.push(ThemeFieldError {
+                    field,
+                    message: "must be an uppercase #RRGGBB color".to_string(),
+                });
+            }
+        }
+        for (field, opacity) in [
+            ("background_opacity", self.background_opacity),
+            ("border_opacity", self.border_opacity),
+        ] {
+            if !(0.0..=1.0).contains(&opacity) {
+                errors.push(ThemeFieldError {
+                    field,
+                    message: "must be between 0.0 and 1.0".to_string(),
+                });
+            }
+        }
+        if self.radius > 32 {
+            errors.push(ThemeFieldError {
+                field: "radius",
+                message: "must be between 0 and 32".to_string(),
+            });
+        }
+        if self.blur > 64 {
+            errors.push(ThemeFieldError {
+                field: "blur",
+                message: "must be between 0 and 64".to_string(),
+            });
+        }
+        if self.row_spacing > 24 {
+            errors.push(ThemeFieldError {
+                field: "row_spacing",
+                message: "must be between 0 and 24".to_string(),
+            });
+        }
+        if !errors.is_empty() {
+            bail!(ThemeValidationError { fields: errors });
+        }
+
+        let mut warnings = Vec::new();
+        for (field, color) in [
+            ("text_primary", &self.text_primary),
+            ("text_secondary", &self.text_secondary),
+        ] {
+            if contrast_ratio(&self.background, color) < 4.5 {
+                warnings.push(ThemeWarning {
+                    field,
+                    message: "has low contrast against background".to_string(),
+                });
+            }
+        }
+        Ok(warnings)
+    }
+}
+
+fn is_hex_color(value: &str) -> bool {
+    value.len() == 7
+        && value.starts_with('#')
+        && value[1..]
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || matches!(byte, b'A'..=b'F'))
+}
+
+fn contrast_ratio(left: &str, right: &str) -> f64 {
+    let luminance = |color: &str| {
+        let component =
+            |index| f64::from(u8::from_str_radix(&color[index..index + 2], 16).unwrap()) / 255.0;
+        let linear = |value: f64| {
+            if value <= 0.04045 {
+                value / 12.92
+            } else {
+                ((value + 0.055) / 1.055).powf(2.4)
+            }
+        };
+        0.2126 * linear(component(1))
+            + 0.7152 * linear(component(3))
+            + 0.0722 * linear(component(5))
+    };
+    let (left, right) = (luminance(left), luminance(right));
+    (left.max(right) + 0.05) / (left.min(right) + 0.05)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accepts_the_default_theme() {
+        assert!(ThemeConfig::default_theme().validate().is_ok());
+    }
+
+    #[test]
+    fn rejects_colors_other_than_uppercase_six_digit_hex() {
+        for invalid_color in ["#abcdef", "#FFF", "#FFFFFFFF"] {
+            let mut theme = ThemeConfig::default_theme();
+            theme.background = invalid_color.to_string();
+
+            let error = theme.validate().unwrap_err();
+            assert!(error.to_string().contains("background"));
+        }
+    }
+
+    #[test]
+    fn rejects_values_outside_the_schema_ranges() {
+        let mut theme = ThemeConfig::default_theme();
+        theme.background_opacity = 1.1;
+        assert!(theme
+            .validate()
+            .unwrap_err()
+            .to_string()
+            .contains("background_opacity"));
+
+        theme = ThemeConfig::default_theme();
+        theme.radius = 33;
+        assert!(theme.validate().unwrap_err().to_string().contains("radius"));
+
+        theme = ThemeConfig::default_theme();
+        theme.blur = 65;
+        assert!(theme.validate().unwrap_err().to_string().contains("blur"));
+
+        theme = ThemeConfig::default_theme();
+        theme.row_spacing = 25;
+        assert!(theme
+            .validate()
+            .unwrap_err()
+            .to_string()
+            .contains("row_spacing"));
+    }
+
+    #[test]
+    fn returns_a_warning_for_low_contrast_without_rejecting_the_theme() {
+        let mut theme = ThemeConfig::default_theme();
+        theme.background = "#FFFFFF".to_string();
+        theme.text_primary = "#FFFFFF".to_string();
+
+        let warnings = theme.validate().unwrap();
+        assert!(warnings
+            .iter()
+            .any(|warning| warning.field == "text_primary"));
+    }
+
+    #[test]
+    fn serializes_and_deserializes_the_theme_toml_section() {
+        let document = ThemeFile {
+            theme: ThemeConfig::default_theme(),
+        };
+
+        let toml = document.to_toml().unwrap();
+        assert!(toml.starts_with("[theme]"));
+        assert_eq!(ThemeFile::from_toml(&toml).unwrap(), document);
+    }
+}

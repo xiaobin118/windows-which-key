@@ -1,7 +1,7 @@
-use std::fmt;
-use std::collections::HashMap;
 use bitflags::bitflags;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::fmt;
 use windows::Win32::UI::Input::KeyboardAndMouse::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -35,8 +35,12 @@ impl Key {
     pub const Y: Key = Key(0x59);
     pub const Z: Key = Key(0x5A);
 
-    pub fn from_vk(vk: u32) -> Self { Key(vk) }
-    pub fn vk_code(&self) -> u32 { self.0 }
+    pub fn from_vk(vk: u32) -> Self {
+        Key(vk)
+    }
+    pub fn vk_code(&self) -> u32 {
+        self.0
+    }
 }
 
 impl fmt::Display for Key {
@@ -49,14 +53,28 @@ impl fmt::Display for Key {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Modifier { Ctrl, Alt, Shift, Meta }
+pub enum Modifier {
+    Ctrl,
+    Alt,
+    Shift,
+    Meta,
+}
 
 impl Modifier {
     pub fn from_vk(vk: u32) -> Option<Self> {
         match vk {
-            v if v == VK_CONTROL.0 as u32 || v == VK_LCONTROL.0 as u32 || v == VK_RCONTROL.0 as u32 => Some(Modifier::Ctrl),
-            v if v == VK_MENU.0 as u32 || v == VK_LMENU.0 as u32 || v == VK_RMENU.0 as u32 => Some(Modifier::Alt),
-            v if v == VK_SHIFT.0 as u32 || v == VK_LSHIFT.0 as u32 || v == VK_RSHIFT.0 as u32 => Some(Modifier::Shift),
+            v if v == VK_CONTROL.0 as u32
+                || v == VK_LCONTROL.0 as u32
+                || v == VK_RCONTROL.0 as u32 =>
+            {
+                Some(Modifier::Ctrl)
+            }
+            v if v == VK_MENU.0 as u32 || v == VK_LMENU.0 as u32 || v == VK_RMENU.0 as u32 => {
+                Some(Modifier::Alt)
+            }
+            v if v == VK_SHIFT.0 as u32 || v == VK_LSHIFT.0 as u32 || v == VK_RSHIFT.0 as u32 => {
+                Some(Modifier::Shift)
+            }
             v if v == VK_LWIN.0 as u32 || v == VK_RWIN.0 as u32 => Some(Modifier::Meta),
             _ => None,
         }
@@ -82,17 +100,24 @@ impl ModifierSet {
             Modifier::Meta => ModifierSet::META,
         }
     }
-    pub fn insert_modifier(&mut self, m: Modifier) { *self |= Self::from_modifier(m); }
-    pub fn remove_modifier(&mut self, m: Modifier) { *self &= !Self::from_modifier(m); }
-    pub fn contains_modifier(&self, m: Modifier) -> bool { self.contains(Self::from_modifier(m)) }
+    pub fn insert_modifier(&mut self, m: Modifier) {
+        *self |= Self::from_modifier(m);
+    }
+    pub fn remove_modifier(&mut self, m: Modifier) {
+        *self &= !Self::from_modifier(m);
+    }
+    pub fn contains_modifier(&self, m: Modifier) -> bool {
+        self.contains(Self::from_modifier(m))
+    }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeyEvent {
     KeyDown(Key),
     KeyUp(Key),
     ModifierDown(Modifier),
     ModifierUp(Modifier),
+    ToggleShowAll,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -101,16 +126,48 @@ pub struct ShortcutKey {
     pub key: Key,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum BindingPriority {
+    Essential,
+    Recommended,
+    Advanced,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BindingMetadata {
+    pub category: String,
+    pub priority: BindingPriority,
+}
+
 #[derive(Debug, Clone)]
 pub struct Node {
     pub desc: Option<String>,
+    pub metadata: Option<BindingMetadata>,
     pub children: HashMap<ShortcutKey, Node>,
     pub group_name: Option<String>,
 }
 
 impl Node {
-    pub fn new(desc: Option<String>) -> Self { Self { desc, children: HashMap::new(), group_name: None } }
-    pub fn is_leaf(&self) -> bool { self.children.is_empty() }
+    pub fn new(desc: Option<String>) -> Self {
+        Self {
+            desc,
+            metadata: None,
+            children: HashMap::new(),
+            group_name: None,
+        }
+    }
+    pub fn new_binding(desc: String, metadata: BindingMetadata) -> Self {
+        Self {
+            desc: Some(desc),
+            metadata: Some(metadata),
+            children: HashMap::new(),
+            group_name: None,
+        }
+    }
+    pub fn is_leaf(&self) -> bool {
+        self.children.is_empty()
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -118,12 +175,25 @@ pub struct DisplayEntry {
     pub key: String,
     pub desc: String,
     pub is_group: bool,
+    pub category: String,
+    pub priority: BindingPriority,
 }
 
 #[derive(Debug)]
 pub enum UiCommand {
-    Show { position: (i32, i32), entries: Vec<DisplayEntry>, breadcrumb: Vec<String> },
-    UpdateEntries { entries: Vec<DisplayEntry>, breadcrumb: Vec<String> },
+    Show {
+        position: (i32, i32),
+        entries: Vec<DisplayEntry>,
+        breadcrumb: Vec<String>,
+    },
+    ShowAll {
+        app_name: String,
+        entries: Vec<DisplayEntry>,
+    },
+    UpdateEntries {
+        entries: Vec<DisplayEntry>,
+        breadcrumb: Vec<String>,
+    },
     Hide,
 }
 
@@ -162,7 +232,13 @@ mod tests {
         let leaf = Node::new(Some("Copy".to_string()));
         assert!(leaf.is_leaf());
         let mut group = Node::new(Some("Git".to_string()));
-        group.children.insert(ShortcutKey { modifiers: ModifierSet::empty(), key: Key::S }, Node::new(Some("Status".to_string())));
+        group.children.insert(
+            ShortcutKey {
+                modifiers: ModifierSet::empty(),
+                key: Key::S,
+            },
+            Node::new(Some("Status".to_string())),
+        );
         assert!(!group.is_leaf());
     }
 }

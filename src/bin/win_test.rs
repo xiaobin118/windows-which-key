@@ -1,7 +1,7 @@
-use windows::Win32::Foundation::{HWND, HINSTANCE, LPARAM, LRESULT, WPARAM};
+use windows::core::w;
+use windows::Win32::Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::WindowsAndMessaging::*;
-use windows::core::w;
 
 unsafe extern "system" fn overlay_window_proc(
     hwnd: HWND,
@@ -29,7 +29,10 @@ fn main() {
         let atom = RegisterClassExW(&wc);
         println!("RegisterClassExW atom: {:x}", atom);
         if atom == 0 {
-            println!("GetLastError: {:?}", windows::Win32::Foundation::GetLastError());
+            println!(
+                "GetLastError: {:?}",
+                windows::Win32::Foundation::GetLastError()
+            );
             return;
         }
 
@@ -55,7 +58,10 @@ fn main() {
                 class_name,
                 w!("Which-Key"),
                 WS_POPUP,
-                0, 0, 400, 300,
+                0,
+                0,
+                400,
+                300,
                 None,
                 None,
                 instance,
@@ -68,7 +74,10 @@ fn main() {
                 }
                 Err(e) => {
                     let err = windows::Win32::Foundation::GetLastError();
-                    println!("Test {} [{}]: FAILED {:?} (GetLastError={})", i, name, e, err.0);
+                    println!(
+                        "Test {} [{}]: FAILED {:?} (GetLastError={})",
+                        i, name, e, err.0
+                    );
                 }
             }
         }

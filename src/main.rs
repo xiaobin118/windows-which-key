@@ -2,10 +2,11 @@ use anyhow::{Context, Result};
 use std::sync::mpsc;
 use std::sync::Arc;
 use std::time::Duration;
+use which_key_windows::foreground_app::ForegroundAppProvider;
+use which_key_windows::*;
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::WindowsAndMessaging::*;
-use which_key_windows::*;
 
 const WM_TRAY_CALLBACK: u32 = WM_USER + 1;
 
@@ -14,16 +15,31 @@ fn main() -> Result<()> {
     log::info!("Which-Key Windows 启动中...");
 
     // ── 加载配置 ──
-    let config_path = std::env::current_dir()?.join("which-key.toml");
+    let config_path = global_config_path()?;
     let config = if config_path.exists() {
         config::Config::load(config_path.clone())?
     } else {
+        std::fs::create_dir_all(config_path.parent().expect("config path has parent"))?;
         create_default_config(&config_path)?;
         config::Config::load(config_path.clone())?
     };
     log::info!("配置加载完成: {}", config_path.display());
 
     // 注册表是纯数据树，可共享给状态机
+    let source = std::fs::read_to_string(&config_path)?;
+    let plugin_dir = config_path
+        .parent()
+        .expect("config path has parent")
+        .join("plugins");
+    let (configuration, warnings) =
+        config::ConfigurationService::from_sources(&source, plugin::BUILTIN_PLUGINS, &plugin_dir)?;
+    for warning in warnings {
+        log::warn!(
+            "跳过用户插件 {}: {}",
+            warning.path.display(),
+            warning.message
+        );
+    }
     let registry = Arc::new(config.registry.clone());
 
     // ── 创建键盘事件通道 ──
@@ -36,8 +52,9 @@ fn main() -> Result<()> {
 
     // ── 初始化核心模块 ──
     let mut state_machine = state_machine::StateMachine::new(registry.clone());
-    let mut overlay = overlay_controller::OverlayController::new()
-        .context("覆盖层初始化失败")?;
+    let foreground = foreground_app::Win32ForegroundAppProvider;
+    let mut show_all_process: Option<String> = None;
+    let mut overlay = overlay_controller::OverlayController::new().context("覆盖层初始化失败")?;
     log::info!("覆盖层已初始化");
 
     // ── 创建托盘图标用的消息窗口 ──
@@ -58,18 +75,76 @@ fn main() -> Result<()> {
 
         // 1. 处理键盘事件
         while let Ok(event) = rx.try_recv() {
+            if matches!(event, types::KeyEvent::ToggleShowAll) && !show_all_is_open(&state_machine)
+            {
+                let process = match capture_show_all_process(foreground.foreground_executable()) {
+                    Ok(process) => process,
+                    Err(error) => {
+                        log::warn!("拒绝打开 show-all: {error:#}");
+                        continue;
+                    }
+                };
+                let resolved =
+                    keymap_resolver::KeymapResolver::from_snapshot(&configuration.current())
+                        .resolve(Some(&process));
+                state_machine.replace_registry(resolved.registry, resolved.app_name);
+                show_all_process = Some(process);
+            }
+            if matches!(event, types::KeyEvent::ModifierDown(_)) {
+                let process = foreground.foreground_executable().unwrap_or_else(|error| {
+                    log::warn!("读取前台进程失败: {error:#}");
+                    None
+                });
+                let resolved =
+                    keymap_resolver::KeymapResolver::from_snapshot(&configuration.current())
+                        .resolve(process.as_deref());
+                state_machine.replace_registry(resolved.registry, resolved.app_name);
+            }
             if let Some(cmd) = state_machine.handle_event(event) {
                 overlay.execute(cmd)?;
+                hook.set_show_all_open(show_all_is_open(&state_machine));
             }
         }
 
         // 2. 检查状态机定时器
         if let Some(cmd) = state_machine.tick() {
             overlay.execute(cmd)?;
+            hook.set_show_all_open(show_all_is_open(&state_machine));
+        }
+
+        if show_all_is_open(&state_machine) {
+            match foreground.foreground_executable() {
+                Ok(process) if process == show_all_process => {}
+                Ok(_) => {
+                    if let Some(cmd) = state_machine.handle_event(types::KeyEvent::ToggleShowAll) {
+                        overlay.execute(cmd)?;
+                    }
+                    show_all_process = None;
+                    hook.set_show_all_open(false);
+                }
+                Err(error) => {
+                    log::warn!("前台进程读取失败，关闭 show-all: {error:#}");
+                    if let Some(cmd) = state_machine.handle_event(types::KeyEvent::ToggleShowAll) {
+                        overlay.execute(cmd)?;
+                    }
+                    show_all_process = None;
+                    hook.set_show_all_open(false);
+                }
+            }
         }
 
         // 3. 处理 Windows 消息（托盘图标）
-        running = pump_messages(&tray_hwnd, &tray, running)?;
+        running = pump_messages(
+            &tray_hwnd,
+            &tray,
+            running,
+            &configuration,
+            &config_path,
+            &plugin_dir,
+            &mut state_machine,
+            &mut overlay,
+            &hook,
+        )?;
 
         // 4. 节流，避免忙等待
         let elapsed = loop_start.elapsed();
@@ -90,10 +165,17 @@ fn main() -> Result<()> {
 }
 
 /// 处理托盘图标的窗口消息，返回是否需要继续运行
+#[allow(clippy::too_many_arguments)]
 fn pump_messages(
     tray_hwnd: &HWND,
     tray: &tray_icon::TrayIcon,
     mut running: bool,
+    configuration: &config::ConfigurationService,
+    config_path: &std::path::Path,
+    plugin_dir: &std::path::Path,
+    state_machine: &mut state_machine::StateMachine,
+    overlay: &mut overlay_controller::OverlayController,
+    hook: &hook::KeyboardHook,
 ) -> Result<bool> {
     unsafe {
         let mut msg = MSG::default();
@@ -104,10 +186,37 @@ fn pump_messages(
                     match cmd {
                         tray_icon::TrayCommand::Quit => running = false,
                         tray_icon::TrayCommand::ReloadConfig => {
-                            log::info!("重新加载配置（暂未实现）");
+                            match std::fs::read_to_string(config_path)
+                                .context("读取全局配置失败")
+                                .and_then(|source| {
+                                    configuration.reload(
+                                        &source,
+                                        plugin::BUILTIN_PLUGINS,
+                                        plugin_dir,
+                                    )
+                                }) {
+                                Ok(warnings) => {
+                                    for warning in warnings {
+                                        log::warn!(
+                                            "跳过用户插件 {}: {}",
+                                            warning.path.display(),
+                                            warning.message
+                                        );
+                                    }
+                                    if let Some(command) =
+                                        dismiss_after_successful_reload(state_machine, hook)
+                                    {
+                                        overlay.execute(command)?;
+                                    }
+                                }
+                                Err(error) => log::warn!("配置重载失败，继续使用旧快照: {error:#}"),
+                            }
                         }
                         tray_icon::TrayCommand::OpenConfig => {
-                            log::info!("打开配置文件（暂未实现）");
+                            std::process::Command::new("notepad.exe")
+                                .arg(config_path)
+                                .spawn()
+                                .context("打开全局配置失败")?;
                         }
                     }
                 }
@@ -118,6 +227,30 @@ fn pump_messages(
         }
     }
     Ok(running)
+}
+
+fn global_config_path() -> Result<std::path::PathBuf> {
+    let app_data = std::env::var_os("APPDATA").context("APPDATA 未设置")?;
+    Ok(std::path::PathBuf::from(app_data)
+        .join("which-key-windows")
+        .join("which-key.toml"))
+}
+
+fn show_all_is_open(state_machine: &state_machine::StateMachine) -> bool {
+    matches!(state_machine.state, state_machine::State::BrowsingAll)
+}
+
+fn capture_show_all_process(process: Result<Option<String>>) -> Result<String> {
+    process?.context("未找到前台进程")
+}
+
+fn dismiss_after_successful_reload(
+    state_machine: &mut state_machine::StateMachine,
+    hook: &hook::KeyboardHook,
+) -> Option<types::UiCommand> {
+    let command = state_machine.dismiss();
+    hook.set_show_all_open(false);
+    command
 }
 
 unsafe extern "system" fn tray_window_proc(
@@ -154,7 +287,10 @@ fn create_message_window() -> Result<HWND> {
             class_name,
             windows::core::w!("Which-Key Tray"),
             WINDOW_STYLE::default(),
-            0, 0, 0, 0,
+            0,
+            0,
+            0,
+            0,
             message_hwnd,
             None,
             instance,
@@ -245,4 +381,93 @@ fn create_default_config(path: &std::path::Path) -> Result<()> {
         .with_context(|| format!("创建默认配置失败: {}", path.display()))?;
     log::info!("已创建默认配置: {}", path.display());
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+
+    #[test]
+    fn show_all_state_enables_hook_interception() {
+        let registry = Arc::new(registry::ShortcutRegistry {
+            globals: types::Node::new(None),
+            applications: Default::default(),
+        });
+        let mut state_machine = state_machine::StateMachine::new(registry);
+        assert!(!show_all_is_open(&state_machine));
+        state_machine.handle_event(types::KeyEvent::ToggleShowAll);
+        assert!(show_all_is_open(&state_machine));
+        state_machine.handle_event(types::KeyEvent::ToggleShowAll);
+        assert!(!show_all_is_open(&state_machine));
+    }
+
+    #[test]
+    fn show_all_requires_a_foreground_process() {
+        assert!(capture_show_all_process(Ok(None)).is_err());
+        assert!(capture_show_all_process(Err(anyhow::anyhow!("access denied"))).is_err());
+        assert_eq!(
+            capture_show_all_process(Ok(Some("code.exe".to_string()))).unwrap(),
+            "code.exe"
+        );
+    }
+
+    #[test]
+    fn reload_dismisses_an_active_state_machine() {
+        let registry = Arc::new(registry::ShortcutRegistry {
+            globals: types::Node::new(None),
+            applications: Default::default(),
+        });
+        let mut state_machine = state_machine::StateMachine::new(registry);
+        state_machine.handle_event(types::KeyEvent::ToggleShowAll);
+        assert!(matches!(
+            state_machine.dismiss(),
+            Some(types::UiCommand::Hide)
+        ));
+        assert!(!show_all_is_open(&state_machine));
+    }
+
+    #[test]
+    fn successful_reload_dismisses_show_all_and_uses_the_new_snapshot_on_next_trigger() {
+        const OLD: &str = "[globals]\n\"C-p\" = { desc = \"Old command\" }\n";
+        const NEW: &str = "[globals]\n\"C-p\" = { desc = \"New command\" }\n";
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let (configuration, _) = config::ConfigurationService::from_sources(
+            OLD,
+            plugin::BUILTIN_PLUGINS,
+            temp_dir.path(),
+        )
+        .unwrap();
+        let mut state_machine = state_machine::StateMachine::new(
+            keymap_resolver::KeymapResolver::from_snapshot(&configuration.current())
+                .resolve(None)
+                .registry,
+        );
+        state_machine.handle_event(types::KeyEvent::ToggleShowAll);
+
+        let (sender, _receiver) = mpsc::channel();
+        let hook = hook::KeyboardHook::new(sender).unwrap();
+        hook.set_show_all_open(true);
+
+        configuration
+            .reload(NEW, plugin::BUILTIN_PLUGINS, temp_dir.path())
+            .unwrap();
+        assert!(matches!(
+            dismiss_after_successful_reload(&mut state_machine, &hook),
+            Some(types::UiCommand::Hide)
+        ));
+        assert_eq!(state_machine.state, state_machine::State::Idle);
+        assert!(!hook.show_all_open_for_test());
+
+        let resolved =
+            keymap_resolver::KeymapResolver::from_snapshot(&configuration.current()).resolve(None);
+        state_machine.replace_registry(resolved.registry, resolved.app_name);
+        match state_machine.handle_event(types::KeyEvent::ToggleShowAll) {
+            Some(types::UiCommand::ShowAll { entries, .. }) => {
+                assert_eq!(entries[0].desc, "New command");
+            }
+            command => panic!("expected show-all from new snapshot, got {command:?}"),
+        }
+    }
 }
