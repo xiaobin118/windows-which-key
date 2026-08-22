@@ -16,6 +16,22 @@ pub struct ThemeConfig {
     pub row_spacing: u8,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ThemeFile {
+    pub theme: ThemeConfig,
+}
+
+impl ThemeFile {
+    pub fn from_toml(source: &str) -> Result<Self> {
+        Ok(toml::from_str(source)?)
+    }
+
+    pub fn to_toml(&self) -> Result<String> {
+        Ok(toml::to_string_pretty(self)?)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ThemeWarning {
     pub field: &'static str,
@@ -212,5 +228,16 @@ mod tests {
         assert!(warnings
             .iter()
             .any(|warning| warning.field == "text_primary"));
+    }
+
+    #[test]
+    fn serializes_and_deserializes_the_theme_toml_section() {
+        let document = ThemeFile {
+            theme: ThemeConfig::default_theme(),
+        };
+
+        let toml = document.to_toml().unwrap();
+        assert!(toml.starts_with("[theme]"));
+        assert_eq!(ThemeFile::from_toml(&toml).unwrap(), document);
     }
 }

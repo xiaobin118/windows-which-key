@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::shortcut::{format_shortcut, parse_shortcut};
 use crate::types::{BindingMetadata, BindingPriority, ShortcutKey};
@@ -20,6 +20,23 @@ pub const BUILTIN_PLUGINS: &[(&str, &str)] = &[
         include_str!("../plugins/builtin/powerpoint.toml"),
     ),
 ];
+
+/// A validated, normalized plugin identifier used at resource boundaries.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct PluginId(String);
+
+impl PluginId {
+    pub fn parse(value: impl Into<String>) -> Result<Self> {
+        Ok(Self(
+            normalized_required("id", value.into())?.to_ascii_lowercase(),
+        ))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PluginOrigin {
@@ -82,7 +99,7 @@ pub fn parse_plugin_toml(source: &str, origin: PluginOrigin) -> Result<PluginDef
         bail!("Unsupported plugin schema version: {}", raw.schema_version);
     }
 
-    let id = normalized_required("id", raw.id)?.to_ascii_lowercase();
+    let id = PluginId::parse(raw.id)?.0;
     let name = normalized_required("name", raw.name)?;
     let description = raw
         .description

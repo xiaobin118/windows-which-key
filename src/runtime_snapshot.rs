@@ -3,6 +3,11 @@ use std::sync::{Arc, RwLock};
 
 use serde::{Deserialize, Serialize};
 
+use crate::config::ConfigurationSnapshot;
+use crate::plugin::{PluginId, PluginSnapshot};
+use crate::registry::ShortcutRegistry;
+use crate::theme::ThemeConfig;
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ContentRevision(String);
@@ -21,7 +26,7 @@ impl ContentRevision {
 pub struct ResourceRevisions {
     pub theme: ContentRevision,
     pub global_config: ContentRevision,
-    pub plugins: HashMap<String, ContentRevision>,
+    pub plugins: HashMap<PluginId, ContentRevision>,
 }
 
 impl ResourceRevisions {
@@ -41,28 +46,43 @@ impl ResourceRevisions {
         self.global_config = ContentRevision::from_content(content);
     }
 
-    pub fn set_plugin_from_content(&mut self, id: impl Into<String>, content: impl AsRef<[u8]>) {
+    pub fn set_plugin_from_content(&mut self, id: PluginId, content: impl AsRef<[u8]>) {
         self.plugins
             .insert(id.into(), ContentRevision::from_content(content));
     }
 }
 
-#[derive(Debug, Clone)]
+/// Existing configuration state is the current compatible representation of app settings.
+pub type AppSettings = ConfigurationSnapshot;
+
 pub struct RuntimeSnapshot {
     pub generation: u64,
     pub revisions: ResourceRevisions,
+    pub settings: Arc<AppSettings>,
+    pub theme: ThemeConfig,
+    pub global_keymap: ShortcutRegistry,
+    pub plugins: Arc<PluginSnapshot>,
 }
 
 impl RuntimeSnapshot {
-    pub fn new(generation: u64, revisions: ResourceRevisions) -> Self {
+    pub fn from_configuration(
+        generation: u64,
+        revisions: ResourceRevisions,
+        theme: ThemeConfig,
+        settings: AppSettings,
+    ) -> Self {
+        let settings = Arc::new(settings);
         Self {
             generation,
             revisions,
+            global_keymap: settings.global.clone(),
+            plugins: Arc::clone(&settings.plugins),
+            settings,
+            theme,
         }
     }
 }
 
-#[derive(Debug)]
 pub struct RuntimeSnapshotStore {
     current: RwLock<Arc<RuntimeSnapshot>>,
 }
@@ -171,6 +191,16 @@ fn sha256_hex(input: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::{parse_toml, ConfigurationSnapshot};
+    use crate::plugin::{PluginId, PluginSnapshot};
+    use crate::theme::ThemeConfig;
+
+    fn configuration_snapshot() -> ConfigurationSnapshot {
+        ConfigurationSnapshot {
+            global: parse_toml("[globals]\n\"C-c\" = { desc = \"Copy\" }").unwrap(),
+            plugins: Arc::new(PluginSnapshot::default()),
+        }
+    }
 
     #[test]
     fn content_revisions_are_deterministic() {
@@ -189,26 +219,70 @@ mod tests {
         let mut revisions = ResourceRevisions::new("theme", "global");
         let original_global = revisions.global_config.clone();
         revisions.set_theme_from_content("new-theme");
-        revisions.set_plugin_from_content("editor", "plugin");
+        revisions.set_plugin_from_content(PluginId::parse("editor").unwrap(), "plugin");
 
         assert_ne!(revisions.theme, ContentRevision::from_content("theme"));
         assert_eq!(revisions.global_config, original_global);
         assert_eq!(
-            revisions.plugins["editor"],
+            revisions.plugins[&PluginId::parse("editor").unwrap()],
             ContentRevision::from_content("plugin")
         );
     }
 
     #[test]
+    fn plugin_revisions_use_one_normalized_plugin_id() {
+        let mut revisions = ResourceRevisions::new("theme", "global");
+        revisions.set_plugin_from_content(PluginId::parse("Editor").unwrap(), "first");
+        revisions.set_plugin_from_content(PluginId::parse("editor").unwrap(), "second");
+
+        assert_eq!(revisions.plugins.len(), 1);
+        assert_eq!(
+            revisions.plugins[&PluginId::parse("EDITOR").unwrap()],
+            ContentRevision::from_content("second")
+        );
+    }
+
+    #[test]
+    fn runtime_snapshot_keeps_all_runtime_components_from_one_configuration_snapshot() {
+        let configuration = configuration_snapshot();
+        let snapshot = RuntimeSnapshot::from_configuration(
+            0,
+            ResourceRevisions::new("theme", "global"),
+            ThemeConfig::default_theme(),
+            configuration,
+        );
+
+        assert_eq!(snapshot.settings.global.entries_at(&[]).len(), 1);
+        assert_eq!(snapshot.global_keymap.entries_at(&[]).len(), 1);
+        assert!(Arc::ptr_eq(&snapshot.settings.plugins, &snapshot.plugins));
+        assert_eq!(snapshot.theme, ThemeConfig::default_theme());
+    }
+
+    #[test]
     fn replacing_a_snapshot_increments_generation_monotonically() {
-        let initial = RuntimeSnapshot::new(0, ResourceRevisions::new("theme", "global"));
+        let initial = RuntimeSnapshot::from_configuration(
+            0,
+            ResourceRevisions::new("theme", "global"),
+            ThemeConfig::default_theme(),
+            configuration_snapshot(),
+        );
         let store = RuntimeSnapshotStore::new(initial);
 
         let first = store.replace_with(|current| {
-            RuntimeSnapshot::new(current.generation + 1, current.revisions.clone())
+            RuntimeSnapshot::from_configuration(
+                current.generation + 1,
+                current.revisions.clone(),
+                current.theme.clone(),
+                configuration_snapshot(),
+            )
         });
         let second = store.replace_with(|current| {
-            RuntimeSnapshot::new(current.generation + 1, current.revisions.clone())
+            RuntimeSnapshot::from_configuration(
+                current.generation + 1,
+                current.revisions.clone(),
+                current.theme.clone(),
+                configuration_snapshot(),
+            )
         });
 
         assert_eq!(first.generation, 1);
