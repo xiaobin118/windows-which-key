@@ -1,0 +1,63 @@
+//! 最终验证：启动新构建的 app，注入 Win+Shift+C，确认面板窗口
+//! 尺寸经过正确的 DPI 缩放（150% 下应为 1170×840 左右）。
+
+use std::time::Duration;
+use windows::Win32::Foundation::HWND;
+use windows::Win32::UI::Input::KeyboardAndMouse::{
+    SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, VK_C, VK_LSHIFT,
+    VK_LWIN,
+};
+use windows::Win32::UI::WindowsAndMessaging::{FindWindowW, GetWindowRect, IsWindowVisible};
+
+fn press(vk: u16, up: bool) -> INPUT {
+    INPUT {
+        r#type: INPUT_KEYBOARD,
+        Anonymous: INPUT_0 {
+            ki: KEYBDINPUT {
+                wVk: windows::Win32::UI::Input::KeyboardAndMouse::VIRTUAL_KEY(vk),
+                wScan: 0,
+                dwFlags: if up { KEYEVENTF_KEYUP } else {
+                    windows::Win32::UI::Input::KeyboardAndMouse::KEYBD_EVENT_FLAGS(0)
+                },
+                time: 0,
+                dwExtraInfo: 0,
+            },
+        },
+    }
+}
+
+fn main() {
+    unsafe {
+        let seq = [
+            press(VK_LWIN.0, false),
+            press(VK_LSHIFT.0, false),
+            press(VK_C.0, false),
+            press(VK_C.0, true),
+            press(VK_LSHIFT.0, true),
+            press(VK_LWIN.0, true),
+        ];
+        SendInput(&seq, std::mem::size_of::<INPUT>() as i32);
+
+        for _ in 0..20 {
+            std::thread::sleep(Duration::from_millis(500));
+            if let Ok(hwnd) = FindWindowW(windows::core::w!("WhichKeyControlPanel"), None) {
+                if IsWindowVisible(hwnd).as_bool() {
+                    let mut rect = Default::default();
+                    if GetWindowRect(hwnd, &mut rect).is_ok() {
+                        eprintln!(
+                            "panel rect: ({},{})-({},{})  {}x{}",
+                            rect.left,
+                            rect.top,
+                            rect.right,
+                            rect.bottom,
+                            rect.right - rect.left,
+                            rect.bottom - rect.top
+                        );
+                    }
+                    return;
+                }
+            }
+        }
+        eprintln!("panel not found");
+    }
+}

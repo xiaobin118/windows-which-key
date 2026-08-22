@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><title>Panel preview (new)</title>
+<style>body{margin:0;background:#333}iframe{width:780px;height:560px;border:none;display:block}</style>
+</head>
+<body>
+<iframe id="p" src="/src/control_panel.html"></iframe>
+<script>
+const state = {
+  type: 'state', version: '0.1.0',
+  configPath: 'C:\\Users\\33508\\AppData\\Roaming\\which-key-windows\\which-key.toml',
+  pluginDir: 'C:\\Users\\33508\\AppData\\Roaming\\which-key-windows\\plugins',
+  theme: {
+    background: '#0B0F1F', background_opacity: 0.92, border: '#91A4FF', border_opacity: 0.2,
+    accent: '#618CFF', text_primary: '#EDF1FF', text_secondary: '#D2DCFF',
+    radius: 20, blur: 24, row_spacing: 6,
+  },
+  plugins: {
+    builtIn: [
+      { id: 'vscode', name: 'VS Code', processes: ['code.exe'], bindings: 24, disabled: false },
+      { id: 'word', name: 'Word', processes: ['winword.exe'], bindings: 18, disabled: false },
+      { id: 'excel', name: 'Excel', processes: ['excel.exe'], bindings: 21, disabled: false },
+      { id: 'powerpoint', name: 'PowerPoint', processes: ['powerpnt.exe'], bindings: 15, disabled: true },
+    ],
+    user: [], dir: 'C:\\Users\\33508\\AppData\\Roaming\\which-key-windows\\plugins',
+  },
+};
+document.getElementById('p').addEventListener('load', (e) => {
+  e.target.contentWindow.postMessage(JSON.stringify(state), '*');
+});
+</script>
+</body>
+</html>

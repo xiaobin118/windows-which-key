@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Which-Key 控制面板</title>
+    <style>
+        :root {
+            --bg-gradient-start: #0F1526;
+            --bg-gradient-end: #0B0F1F;
+            --nav-bg: #0D1220;
+            --divider: rgba(145, 164, 255, 0.12);
+            --card-bg: #131930;
+            --card-border: rgba(145, 164, 255, 0.15);
+            --border-medium: rgba(145, 164, 255, 0.25);
+            --border-strong: rgba(145, 164, 255, 0.28);
+            --accent-start: #618CFF;
+            --accent-end: #8C6BFF;
+            --surface: #1A2138;
+            --keycap-start: #20294A;
+            --keycap-end: #161D36;
+            --text-primary: #EDF1FF;
+            --text-keycap: #DFE7FF;
+            --text-accent: #A9C5FF;
+            --text-muted: rgba(210, 220, 255, 0.7);
+            --text-faint: rgba(210, 220, 255, 0.58);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html, body { height: 100%; overflow: hidden; }
+
+        body {
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            color: var(--text-primary);
+            background: linear-gradient(180deg, var(--bg-gradient-start), var(--bg-gradient-end));
+            user-select: none;
+        }
+
+        .layout { display: flex; height: 100vh; }
+
+        /* ── 左侧导航 ── */
+        .nav {
+            display: flex;
+            flex-direction: column;
+            flex: 0 0 205px;
+            background: var(--nav-bg);
+            border-right: 1px solid var(--divider);
+            padding: 16px 12px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 4px 8px 18px;
+        }
+
+        .brand-mark {
+            display: grid;
+            width: 34px;
+            height: 34px;
+            place-items: center;
+            color: var(--text-keycap);
+            font: 700 13px/1 Consolas, 'Courier New', monospace;
+            letter-spacing: -0.04em;
+            background: linear-gradient(135deg, var(--accent-start), var(--accent-end));
+            border-radius: 10px;
+            box-shadow: 0 3px 10px rgba(97, 108, 255, 0.35);
+        }
+
+        .brand-title { font-size: 15px; font-weight: 650; letter-spacing: -0.02em; }
+        .brand-subtitle { margin-top: 2px; color: rgba(210, 220, 255, 0.45); font-size: 10px; }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            height: 36px;
+            padding: 0 12px;
+            border-radius: 8px;
+            border-left: 3px solid transparent;
+            color: rgba(210, 220, 232, 0.6);
+            font-size: 12px;
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s;
+        }
+
+        .nav-item svg { width: 16px; height: 16px; flex: 0 0 auto; }
+        .nav-item:hover { background: rgba(97, 140, 255, 0.08); }
+
+        .nav-item.active {
+            background: rgba(97, 140, 255, 0.12);
+            border-left-color: var(--accent-start);
+            color: var(--text-keycap);
+        }
+
+        .nav-spacer { flex: 1; }
+        .nav-footer { padding: 8px 10px; color: rgba(210, 220, 255, 0.45); font-size: 10px; }
+
+        /* ── 右侧内容 ── */
+        .content {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(145, 164, 255, 0.3) transparent;
+        }
+
+        .content::-webkit-scrollbar { width: 4px; }
+        .content::-webkit-scrollbar-thumb {
+            background: rgba(145, 164, 255, 0.3);
+            border-radius: 999px;
+        }
+
+        .section { display: none; }
+        .section.active { display: block; }
+
+        .section-title { margin: 2px 0 16px; font-size: 16px; font-weight: 650; letter-spacing: -0.01em; }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .card-title { font-size: 14px; font-weight: 600; color: var(--text-keycap); }
+        .card-desc { margin: 4px 0 14px; color: rgba(210, 220, 255, 0.5); font-size: 12px; }
+
+        .row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            min-height: 34px;
+            padding: 6px 0;
+            border-bottom: 1px solid var(--divider);
+        }
+
+        .row:last-child { border-bottom: none; }
+
+        .row-label { font-size: 12px; color: rgba(210, 220, 255, 0.85); }
+
+        /* ── 主题预设 ── */
+        .presets { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+
+        .preset {
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+            flex: 1;
+            padding: 10px 12px;
+            border: 2px solid var(--divider);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.02);
+            cursor: pointer;
+            transition: border-color 0.15s, background 0.15s;
+            min-width: 96px;
+            text-align: center;
+            align-items: center;
+        }
+
+        .preset:hover { background: rgba(97, 140, 255, 0.06); }
+        .preset.selected { border-color: var(--accent-start); background: rgba(97, 140, 255, 0.1); }
+
+        .preset-dots { display: flex; gap: 5px; }
+
+        .preset-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 5px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+
+        .preset-name { font-size: 11px; color: var(--text-muted); }
+        .preset.selected .preset-name { color: var(--text-keycap); }
+
+        /* ── 颜色行 ── */
+        .color-control { display: flex; align-items: center; gap: 9px; }
+
+        .color-dot {
+            width: 18px;
+            height: 18px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+
+        .hex-value {
+            min-width: 66px;
+            font: 600 12px/1.4 Consolas, 'Courier New', monospace;
+            color: var(--text-accent);
+        }
+
+        input[type="color"] {
+            width: 34px;
+            height: 22px;
+            padding: 0;
+            border: 1px solid var(--border-medium);
+            border-radius: 5px;
+            background: transparent;
+            cursor: pointer;
+        }
+
+        input[type="color"]::-webkit-color-swatch-wrapper { padding: 2px; }
+        input[type="color"]::-webkit-color-swatch { border: none; border-radius: 3px; }
+
+        /* ── 滑块 ── */
+        .slider-control { display: flex; align-items: center; gap: 12px; }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 170px;
+            height: 4px;
+            border-radius: 999px;
+            background:
+                linear-gradient(90deg, var(--accent-start), var(--accent-end)) 0 0 / var(--fill, 50%) 100% no-repeat,
+                rgba(145, 164, 255, 0.2);
+            outline: none;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #fff;
+            border: 2px solid var(--accent-start);
+        }
+
+        .slider-value {
+            min-width: 52px;
+            text-align: right;
+            font: 600 12px/1.4 Consolas, 'Courier New', monospace;
+            color: var(--text-accent);
+        }
+
+        /* ── 键帽 / 徽章 / 标签 ── */
+        .keycap {
+            display: inline-block;
+            padding: 4px 9px;
+            color: var(--text-keycap);
+            font: 600 12px/1.4 Consolas, 'Courier New', monospace;
+            background: linear-gradient(145deg, var(--keycap-start), var(--keycap-end));
+            border: 1px solid var(--border-strong);
+            border-radius: 8px;
+            box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+        }
+
+        .badge {
+            padding: 2px 7px;
+            color: var(--text-accent);
+            font: 700 10px/1.4 Consolas, 'Courier New', monospace;
+            background: rgba(97, 140, 255, 0.12);
+            border: 1px solid rgba(111, 155, 255, 0.24);
+            border-radius: 999px;
+        }
+
+        .tag {
+            padding: 2px 7px;
+            font-size: 10px;
+            border-radius: 999px;
+            color: rgba(210, 220, 255, 0.72);
+            background: rgba(145, 164, 255, 0.08);
+            border: 1px solid var(--divider);
+        }
+
+        /* ── 插件卡片 ── */
+        .plugin-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .plugin-card {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            min-height: 64px;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.025);
+            border: 1px solid var(--divider);
+            border-radius: 8px;
+        }
+
+        .plugin-card.disabled { opacity: 0.68; }
+        .plugin-card.invalid { border-color: rgba(255, 138, 101, 0.32); }
+
+        .plugin-avatar {
+            display: grid;
+            width: 42px;
+            height: 42px;
+            flex: 0 0 auto;
+            place-items: center;
+            color: #fff;
+            font: 700 15px/1 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            border-radius: 10px;
+        }
+
+        .plugin-main { min-width: 0; flex: 1; }
+        .plugin-name { font-size: 13px; font-weight: 650; color: var(--text-primary); }
+
+        .plugin-processes {
+            margin-top: 3px;
+            color: var(--text-faint);
+            font: 500 11px/1.4 Consolas, 'Courier New', monospace;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .plugin-meta { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+        .plugin-meta .tag.disabled {
+            color: #FFD1C2;
+            background: rgba(255, 138, 101, 0.12);
+            border-color: rgba(255, 138, 101, 0.26);
+        }
+
+        .plugin-meta .tag.user {
+            color: #B9F4EE;
+            background: rgba(77, 208, 196, 0.10);
+            border-color: rgba(77, 208, 196, 0.24);
+        }
+
+        .empty { padding: 14px 0; color: var(--text-faint); font-size: 12px; }
+
+        /* ── 关于 ── */
+        .about-hero {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 2px 2px 18px;
+            border-bottom: 1px solid var(--divider);
+            margin-bottom: 6px;
+        }
+
+        .about-hero .brand-mark {
+            width: 62px;
+            height: 62px;
+            font-size: 19px;
+            border-radius: 16px;
+        }
+
+        .about-title {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+        }
+
+        .about-desc { margin-top: 4px; color: var(--text-faint); font-size: 12px; }
+
+        /* ── 按钮 ── */
+        .actions { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+
+        .btn {
+            height: 32px;
+            padding: 0 16px;
+            border: none;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            color: #fff;
+            background: linear-gradient(135deg, var(--accent-start), var(--accent-end));
+        }
+
+        .btn-primary:active { filter: brightness(0.9); }
+
+        .btn-ghost {
+            color: rgba(210, 220, 255, 0.75);
+            background: transparent;
+            border: 1px solid var(--border-medium);
+        }
+
+        .status { color: var(--text-faint); font-size: 11px; transition: color 0.2s; }
+        .status.ok { color: #6FD3A0; }
+
+        .path {
+            user-select: text;
+            font: 500 11px/1.6 Consolas, 'Courier New', monospace;
+            color: var(--text-faint);
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <div class="layout">
+        <div class="nav">
+            <div class="brand">
+                <div class="brand-mark">W/K</div>
+                <div>
+                    <div class="brand-title">Which-Key</div>
+                    <div class="brand-subtitle">控制面板</div>
+                </div>
+            </div>
+
+            <div class="nav-item active" data-section="appearance">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M8 1.8a6.2 6.2 0 0 0 0 12.4c1 0 1.5-.6 1.5-1.3 0-.9-.7-1.2-.7-1.9 0-.6.5-1 1.2-1h1.3c1.6 0 2.9-1.2 2.9-3A6.2 6.2 0 0 0 8 1.8Z"/>
+                    <circle cx="5.4" cy="5.8" r="0.9" fill="currentColor" stroke="none"/>
+                    <circle cx="8.4" cy="4.6" r="0.9" fill="currentColor" stroke="none"/>
+                    <circle cx="11.2" cy="6.6" r="0.9" fill="currentColor" stroke="none"/>
+                </svg>
+                外观
+            </div>
+            <div class="nav-item" data-section="hotkeys">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <rect x="1.5" y="4" width="13" height="8" rx="1.5"/>
+                    <circle cx="4.4" cy="6.6" r="0.5" fill="currentColor" stroke="none"/>
+                    <circle cx="7" cy="6.6" r="0.5" fill="currentColor" stroke="none"/>
+                    <circle cx="9.6" cy="6.6" r="0.5" fill="currentColor" stroke="none"/>
+                    <circle cx="12.2" cy="6.6" r="0.5" fill="currentColor" stroke="none"/>
+                    <circle cx="4.4" cy="9.4" r="0.5" fill="currentColor" stroke="none"/>
+                    <path d="M7 9.4h5.2" stroke-linecap="round"/>
+                </svg>
+                快捷键
+            </div>
+            <div class="nav-item" data-section="plugins">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M6.2 2h3.6v2.1c0 .7.6 1.3 1.3 1.3h2.1v3.4h-2.1c-.7 0-1.3.6-1.3 1.3v2.1H6.2v-2.1c0-.7-.6-1.3-1.3-1.3H2.8V5.4h2.1c.7 0 1.3-.6 1.3-1.3V2Z"/>
+                    <path d="M6.2 2c0-.8.7-1.4 1.5-1.4S9.2 1.2 9.8 2" opacity="0" />
+                    <path d="M9.8 12.2c0 .8-.7 1.4-1.5 1.4s-1.3-.6-2.1-1.4" opacity="0" />
+                </svg>
+                插件
+            </div>
+            <div class="nav-item" data-section="about">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <circle cx="8" cy="8" r="6.2"/>
+                    <path d="M8 7.2v4" stroke-linecap="round"/>
+                    <circle cx="8" cy="5" r="0.7" fill="currentColor" stroke="none"/>
+                </svg>
+                关于
+            </div>
+
+            <div class="nav-spacer"></div>
+            <div class="nav-footer" id="nav-version">Which-Key</div>
+        </div>
+
+        <div class="content">
+            <!-- 外观 -->
+            <div class="section active" id="section-appearance">
+                <div class="section-title">外观</div>
+                <div class="card">
+                    <div class="card-title">主题</div>
+                    <div class="card-desc">选择预设或自定义颜色，改动即时预览到浮层；点「保存主题」写入配置文件。</div>
+                    <div class="presets" id="theme-presets"></div>
+                    <div id="theme-rows"></div>
+                    <div class="actions">
+                        <button class="btn btn-primary" id="btn-save-theme">保存主题</button>
+                        <button class="btn btn-ghost" id="btn-reset-theme">恢复默认</button>
+                        <span class="status" id="theme-status"></span>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title">配置</div>
+                    <div class="card-desc">修改 which-key.toml 或插件后，可在此重新加载，无需重启程序。</div>
+                    <div class="actions" style="margin-top:0">
+                        <button class="btn btn-primary" id="btn-reload">重新加载配置</button>
+                        <span class="status" id="reload-status"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 快捷键 -->
+            <div class="section" id="section-hotkeys">
+                <div class="section-title">快捷键</div>
+                <div class="card">
+                    <div class="card-title">触发方式</div>
+                    <div class="card-desc">Which-Key 自身的操作按键，与应用内快捷键无关。</div>
+                    <div class="row">
+                        <span class="row-label">显示当前修饰键的快捷键</span>
+                        <span class="row-value"><span class="keycap">长按 Ctrl</span> 约 300ms</span>
+                    </div>
+                    <div class="row">
+                        <span class="row-label">显示全部快捷键</span>
+                        <span class="row-value"><span class="keycap">Win</span> + <span class="keycap">Shift</span> + <span class="keycap">/</span></span>
+                    </div>
+                    <div class="row">
+                        <span class="row-label">打开控制面板</span>
+                        <span class="row-value"><span class="keycap">Win</span> + <span class="keycap">Shift</span> + <span class="keycap">C</span></span>
+                    </div>
+                    <div class="row">
+                        <span class="row-label">关闭面板</span>
+                        <span class="row-value"><span class="keycap">Esc</span></span>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title">修饰键累加</div>
+                    <div class="card-desc">面板打开后继续按住或追加修饰键，列表会实时切换。</div>
+                    <div class="row">
+                        <span class="row-label">先按 Ctrl 再按 Shift</span>
+                        <span class="row-value"><span class="keycap">C-S-…</span></span>
+                    </div>
+                    <div class="row">
+                        <span class="row-label">松开其中一个修饰键</span>
+                        <span class="row-value"><span class="keycap">C-…</span> 或 <span class="keycap">S-…</span></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 插件 -->
+            <div class="section" id="section-plugins">
+                <div class="section-title">插件</div>
+                <div class="card">
+                    <div class="card-title">内置插件</div>
+                    <div class="card-desc">随程序附带，为常用应用提供快捷键数据。</div>
+                    <div id="builtin-plugins"></div>
+                </div>
+                <div class="card">
+                    <div class="card-title">用户插件</div>
+                    <div class="card-desc">把 .toml 文件放进以下目录即可生效，优先级高于内置插件。</div>
+                    <div id="user-plugins"></div>
+                    <div class="path" id="plugin-dir"></div>
+                    <div class="actions" style="margin-top:10px">
+                        <button class="btn btn-ghost" id="btn-open-plugin-dir">打开目录</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 关于 -->
+            <div class="section" id="section-about">
+                <div class="section-title">关于</div>
+                <div class="card">
+                    <div class="about-hero">
+                        <div class="brand-mark">W/K</div>
+                        <div>
+                            <div class="about-title">Which-Key for Windows</div>
+                            <div class="about-desc">按住修饰键，看一眼当前能用的所有快捷键。</div>
+                        </div>
+                        <span class="badge" id="about-version" style="margin-left:auto">-</span>
+                    </div>
+                    <div class="row">
+                        <span class="row-label">配置文件</span>
+                        <span class="path" id="about-config">-</span>
+                    </div>
+                    <div class="row">
+                        <span class="row-label">插件目录</span>
+                        <span class="path" id="about-plugin-dir">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ── 导航切换 ──
+        document.querySelectorAll('.nav-item').forEach((item) => {
+            item.addEventListener('click', () => {
+                document.querySelectorAll('.nav-item').forEach((node) => node.classList.remove('active'));
+                document.querySelectorAll('.section').forEach((node) => node.classList.remove('active'));
+                item.classList.add('active');
+                document.getElementById('section-' + item.dataset.section).classList.add('active');
+            });
+        });
+
+        function sendToHost(payload) {
+            if (window.chrome && window.chrome.webview) {
+                window.chrome.webview.postMessage(payload);
+                return true;
+            }
+            return false;
+        }
+
+        // ── 主题定义 ──
+        const THEME_PRESETS = [
+            {
+                name: '深夜蓝（默认）',
+                theme: {
+                    background: '#0B0F1F', background_opacity: 0.92,
+                    border: '#91A4FF', border_opacity: 0.2,
+                    accent: '#618CFF', text_primary: '#EDF1FF', text_secondary: '#D2DCFF',
+                    radius: 20, blur: 24, row_spacing: 6,
+                },
+            },
+            {
+                name: '暮光紫',
+                theme: {
+                    background: '#171226', background_opacity: 0.92,
+                    border: '#A78BFF', border_opacity: 0.22,
+                    accent: '#B07CFF', text_primary: '#F2EBFF', text_secondary: '#D8CCFF',
+                    radius: 20, blur: 24, row_spacing: 6,
+                },
+            },
+            {
+                name: '海雾青',
+                theme: {
+                    background: '#0A1A1C', background_opacity: 0.92,
+                    border: '#7FD9CF', border_opacity: 0.2,
+                    accent: '#4DD0C4', text_primary: '#E8FFFC', text_secondary: '#C2E8E2',
+                    radius: 20, blur: 24, row_spacing: 6,
+                },
+            },
+            {
+                name: '石墨灰',
+                theme: {
+                    background: '#14161A', background_opacity: 0.94,
+                    border: '#AEBAC6', border_opacity: 0.18,
+                    accent: '#9AA6B2', text_primary: '#F2F5F8', text_secondary: '#C9D1D9',
+                    radius: 16, blur: 20, row_spacing: 6,
+                },
+            },
+        ];
+
+        const COLOR_FIELDS = [
+            ['background', '背景色'],
+            ['border', '边框色'],
+            ['accent', '强调色'],
+            ['text_primary', '主文字色'],
+            ['text_secondary', '次文字色'],
+        ];
+        const SLIDER_FIELDS = [
+            ['background_opacity', '背景不透明度', 0, 1, 0.01],
+            ['border_opacity', '边框不透明度', 0, 1, 0.01],
+            ['radius', '圆角半径', 0, 32, 1],
+            ['blur', '模糊', 0, 64, 1],
+            ['row_spacing', '行间距', 0, 24, 1],
+        ];
+
+        let themeDraft = null;
+        let lastPreviewJson = '';
+
+        // ── 实时预览：编辑即生效到浮层（防抖 200ms，仅在变化时发送） ──
+        let previewTimer = null;
+
+        function schedulePreview() {
+            if (!themeDraft) return;
+            clearTimeout(previewTimer);
+            previewTimer = setTimeout(() => {
+                const json = JSON.stringify(themeDraft);
+                if (json === lastPreviewJson) return;
+                lastPreviewJson = json;
+                clearPresetSelection();
+                if (sendToHost({ type: 'previewTheme', theme: themeDraft })) {
+                    const status = document.getElementById('theme-status');
+                    status.textContent = '预览中（未保存）';
+                    status.classList.remove('ok');
+                }
+            }, 200);
+        }
+
+        // ── 主题编辑器构建 ──
+        function buildThemeEditor() {
+            const host = document.getElementById('theme-rows');
+            host.replaceChildren();
+
+            COLOR_FIELDS.forEach(([field, label]) => {
+                const row = document.createElement('div');
+                row.className = 'row';
+
+                const name = document.createElement('span');
+                name.className = 'row-label';
+                name.textContent = label;
+
+                const wrap = document.createElement('span');
+                wrap.className = 'color-control';
+                const dot = document.createElement('span');
+                dot.className = 'color-dot';
+                dot.id = 'dot-' + field;
+                const hex = document.createElement('span');
+                hex.className = 'hex-value';
+                hex.id = 'hex-' + field;
+                const picker = document.createElement('input');
+                picker.type = 'color';
+                picker.id = 'theme-' + field;
+                picker.addEventListener('input', () => {
+                    themeDraft[field] = picker.value.toUpperCase();
+                    refreshColorRow(field);
+                    schedulePreview();
+                });
+                wrap.append(dot, hex, picker);
+
+                row.append(name, wrap);
+                host.appendChild(row);
+            });
+
+            SLIDER_FIELDS.forEach(([field, label, min, max, step]) => {
+                const row = document.createElement('div');
+                row.className = 'row';
+
+                const name = document.createElement('span');
+                name.className = 'row-label';
+                name.textContent = label;
+
+                const wrap = document.createElement('span');
+                wrap.className = 'slider-control';
+                const slider = document.createElement('input');
+                slider.type = 'range';
+                slider.id = 'theme-' + field;
+                slider.min = min;
+                slider.max = max;
+                slider.step = step;
+                const value = document.createElement('span');
+                value.className = 'slider-value';
+                value.id = 'value-' + field;
+                slider.addEventListener('input', () => {
+                    themeDraft[field] = parseFloat(slider.value);
+                    refreshSliderRow(field, min, max, step);
+                    schedulePreview();
+                });
+                wrap.append(slider, value);
+
+                row.append(name, wrap);
+                host.appendChild(row);
+            });
+        }
+
+        function refreshColorRow(field) {
+            const v = themeDraft[field];
+            const dot = document.getElementById('dot-' + field);
+            const hex = document.getElementById('hex-' + field);
+            if (dot) dot.style.background = v;
+            if (hex) hex.textContent = v;
+        }
+
+        function refreshSliderRow(field, min, max, step) {
+            const slider = document.getElementById('theme-' + field);
+            const value = document.getElementById('value-' + field);
+            if (!slider || !value) return;
+            const decimals = String(step).split('.')[1]?.length || 0;
+            value.textContent = themeDraft[field].toFixed(decimals);
+            const fill = ((themeDraft[field] - min) / (max - min)) * 100;
+            slider.style.setProperty('--fill', fill + '%');
+        }
+
+        function fillThemeEditor(theme) {
+            themeDraft = { ...theme };
+            lastPreviewJson = JSON.stringify(theme);
+            COLOR_FIELDS.forEach(([field]) => {
+                const picker = document.getElementById('theme-' + field);
+                if (picker) picker.value = theme[field].toLowerCase();
+                refreshColorRow(field);
+            });
+            SLIDER_FIELDS.forEach(([field, , min, max, step]) => {
+                const slider = document.getElementById('theme-' + field);
+                if (slider) slider.value = theme[field];
+                refreshSliderRow(field, min, max, step);
+            });
+            syncPresetSelection();
+        }
+
+        // ── 预设 ──
+        function buildPresets() {
+            const host = document.getElementById('theme-presets');
+            host.replaceChildren();
+            THEME_PRESETS.forEach((preset, index) => {
+                const node = document.createElement('div');
+                node.className = 'preset';
+                node.dataset.index = index;
+
+                const dots = document.createElement('div');
+                dots.className = 'preset-dots';
+                [preset.theme.background, preset.theme.accent, preset.theme.text_primary]
+                    .forEach((color) => {
+                        const dot = document.createElement('span');
+                        dot.className = 'preset-dot';
+                        dot.style.background = color;
+                        dots.appendChild(dot);
+                    });
+
+                const name = document.createElement('span');
+                name.className = 'preset-name';
+                name.textContent = preset.name;
+
+                node.append(dots, name);
+                node.addEventListener('click', () => {
+                    fillThemeEditor(preset.theme);
+                    document.querySelectorAll('.preset').forEach((p) => p.classList.remove('selected'));
+                    node.classList.add('selected');
+                    // 选预设立即预览
+                    lastPreviewJson = '';
+                    schedulePreview();
+                });
+                host.appendChild(node);
+            });
+        }
+
+        function clearPresetSelection() {
+            document.querySelectorAll('.preset').forEach((p) => p.classList.remove('selected'));
+        }
+
+        function syncPresetSelection() {
+            clearPresetSelection();
+            const json = JSON.stringify(themeDraft);
+            THEME_PRESETS.forEach((preset, index) => {
+                if (JSON.stringify(preset.theme) === json) {
+                    document.querySelector(`.preset[data-index="${index}"]`)?.classList.add('selected');
+                }
+            });
+        }
+
+        function renderTheme(theme) {
+            if (!themeDraft) {
+                buildThemeEditor();
+                buildPresets();
+            }
+            fillThemeEditor(theme);
+        }
+
+        // ── 插件 ──
+        const AVATAR_GRADIENTS = [
+            ['#618CFF', '#8C6BFF'], ['#5AC8FA', '#618CFF'], ['#8C6BFF', '#D65DB1'],
+            ['#FF8A65', '#D65DB1'], ['#4DD0C4', '#5AC8FA'], ['#F0B429', '#FF8A65'],
+        ];
+
+        function avatarGradient(seedText) {
+            let hash = 0;
+            for (let i = 0; i < seedText.length; i++) {
+                hash = (hash * 31 + seedText.charCodeAt(i)) >>> 0;
+            }
+            const [from, to] = AVATAR_GRADIENTS[hash % AVATAR_GRADIENTS.length];
+            return `linear-gradient(135deg, ${from}, ${to})`;
+        }
+
+        function initialsOf(name) {
+            const parts = name.replace(/\.toml$/i, '').split(/[\s_-]+/).filter(Boolean);
+            return parts.slice(0, 2).map((p) => p[0].toUpperCase()).join('') || '?';
+        }
+
+        function tagNode(text, variant) {
+            const tag = document.createElement('span');
+            tag.className = variant ? `tag ${variant}` : 'tag';
+            tag.textContent = text;
+            return tag;
+        }
+
+        function badgeNode(text) {
+            const badge = document.createElement('span');
+            badge.className = 'badge';
+            badge.textContent = text;
+            return badge;
+        }
+
+        function buildPluginCard(avatarSeed, name, subtitle, rightNodes, flags = {}) {
+            const card = document.createElement('div');
+            card.className = 'plugin-card';
+            if (flags.disabled) card.classList.add('disabled');
+            if (flags.invalid) card.classList.add('invalid');
+
+            const avatar = document.createElement('div');
+            avatar.className = 'plugin-avatar';
+            avatar.style.background = avatarGradient(avatarSeed);
+            avatar.textContent = initialsOf(avatarSeed);
+            card.appendChild(avatar);
+
+            const main = document.createElement('div');
+            main.className = 'plugin-main';
+            const title = document.createElement('div');
+            title.className = 'plugin-name';
+            title.textContent = name;
+            main.appendChild(title);
+            if (subtitle) {
+                const sub = document.createElement('div');
+                sub.className = 'plugin-processes';
+                sub.textContent = subtitle;
+                main.appendChild(sub);
+            }
+            card.appendChild(main);
+
+            if (rightNodes) {
+                const meta = document.createElement('div');
+                meta.className = 'plugin-meta';
+                rightNodes.forEach((node) => meta.appendChild(node));
+                card.appendChild(meta);
+            }
+            return card;
+        }
+
+        function renderPlugins(plugins) {
+            const builtinHost = document.getElementById('builtin-plugins');
+            builtinHost.replaceChildren();
+            builtinHost.className = 'plugin-list';
+            plugins.builtIn.forEach((plugin) => {
+                const rightNodes = [badgeNode(plugin.bindings + ' 条'), tagNode('内置')];
+                if (plugin.disabled) rightNodes.push(tagNode('已禁用', 'disabled'));
+                builtinHost.appendChild(buildPluginCard(
+                    plugin.name, plugin.name, plugin.processes.join(', '), rightNodes,
+                    { disabled: plugin.disabled },
+                ));
+            });
+
+            const userHost = document.getElementById('user-plugins');
+            userHost.replaceChildren();
+            userHost.className = 'plugin-list';
+            if (plugins.user.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'empty';
+                empty.textContent = '暂无用户插件';
+                userHost.appendChild(empty);
+            } else {
+                plugins.user.forEach((plugin) => {
+                    const rightNodes = [
+                        badgeNode(plugin.bindings + ' 条'),
+                        tagNode('用户', 'user'),
+                    ];
+                    if (plugin.disabled) rightNodes.push(tagNode('已禁用', 'disabled'));
+                    if (!plugin.valid) rightNodes.push(tagNode('无效', 'disabled'));
+                    const subtitle = plugin.valid
+                        ? (plugin.processes.length ? plugin.processes.join(', ') : plugin.file)
+                        : plugin.error;
+                    userHost.appendChild(buildPluginCard(
+                        plugin.name,
+                        plugin.name,
+                        subtitle,
+                        rightNodes,
+                        { disabled: plugin.disabled, invalid: !plugin.valid },
+                    ));
+                });
+            }
+            document.getElementById('plugin-dir').textContent = plugins.dir;
+        }
+
+        function renderState(state) {
+            renderTheme(state.theme);
+            renderPlugins(state.plugins);
+            document.getElementById('about-version').textContent = 'v' + state.version;
+            document.getElementById('about-config').textContent = state.configPath;
+            document.getElementById('about-plugin-dir').textContent = state.pluginDir;
+            document.getElementById('nav-version').textContent = 'Which-Key v' + state.version;
+        }
+
+        window.addEventListener('message', (event) => {
+            const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+            if (data && data.type === 'state') {
+                renderState(data);
+            } else if (data && data.type === 'reloadDone') {
+                flashStatus('reload-status', '已重新加载 ✓');
+            } else if (data && data.type === 'themeSaved') {
+                flashStatus('theme-status', '已保存主题 ✓');
+            }
+        });
+
+        function flashStatus(id, text) {
+            const status = document.getElementById(id);
+            status.textContent = text;
+            status.classList.add('ok');
+            setTimeout(() => {
+                status.textContent = '';
+                status.classList.remove('ok');
+            }, 3000);
+        }
+
+        // 页面就绪后向宿主请求一次完整状态（规避 NavigateToString 的加载竞态）
+        sendToHost({ type: 'ready' });
+
+        // ── 动作 ──
+        document.getElementById('btn-reload').addEventListener('click', () => {
+            document.getElementById('reload-status').textContent = '正在重新加载…';
+            if (!sendToHost({ type: 'reload' })) {
+                document.getElementById('reload-status').textContent = '（浏览器预览模式下不可用）';
+            }
+        });
+
+        document.getElementById('btn-save-theme').addEventListener('click', () => {
+            if (!themeDraft) return;
+            const status = document.getElementById('theme-status');
+            if (!sendToHost({ type: 'setTheme', theme: themeDraft })) {
+                status.textContent = '（浏览器预览模式下不可用）';
+                return;
+            }
+            status.textContent = '正在保存…';
+        });
+
+        document.getElementById('btn-reset-theme').addEventListener('click', () => {
+            fillThemeEditor(THEME_PRESETS[0].theme);
+            document.getElementById('theme-status').textContent = '已填入默认值，点「保存主题」生效';
+            lastPreviewJson = '';
+            schedulePreview();
+        });
+
+        document.getElementById('btn-open-plugin-dir').addEventListener('click', () => {
+            sendToHost({ type: 'openPluginDir' });
+        });
+    </script>
+</body>
+</html>

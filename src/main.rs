@@ -11,8 +11,17 @@ use windows::Win32::UI::WindowsAndMessaging::*;
 const WM_TRAY_CALLBACK: u32 = WM_USER + 1;
 
 fn main() -> Result<()> {
+    // 必须在创建任何窗口之前声明 DPI 感知，否则高缩放屏幕上
+    // 整个窗口（含 WebView 文字）会被系统位图拉伸而发虚。
+    let dpi_awareness = unsafe {
+        windows::Win32::UI::HiDpi::SetProcessDpiAwarenessContext(
+            windows::Win32::UI::HiDpi::DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
+        )
+    };
+
     env_logger::init();
     log::info!("Which-Key Windows 启动中...");
+    log::info!("SetProcessDpiAwarenessContext(PMv2): {:?}", dpi_awareness);
 
     // ── 加载配置 ──
     let config_path = global_config_path()?;
@@ -56,12 +65,19 @@ fn main() -> Result<()> {
     let mut show_all_process: Option<String> = None;
     let mut overlay = overlay_controller::OverlayController::new().context("覆盖层初始化失败")?;
     log::info!("覆盖层已初始化");
+    overlay.execute(types::UiCommand::ApplyTheme {
+        theme: configuration.current().theme.clone(),
+    })?;
 
     // ── 创建托盘图标用的消息窗口 ──
     let tray_hwnd = create_message_window()?;
     let tray = tray_icon::TrayIcon::new(tray_hwnd)?;
     tray.show().context("托盘图标创建失败")?;
     log::info!("托盘图标已创建");
+
+    // ── 控制面板（按需创建，首次从托盘打开时初始化 WebView2） ──
+    let (panel_tx, panel_rx) = mpsc::channel::<String>();
+    let mut control_panel: Option<control_panel::ControlPanel> = None;
 
     log::info!("就绪。按住 Ctrl 约 300ms 显示快捷键提示。");
 
@@ -75,6 +91,10 @@ fn main() -> Result<()> {
 
         // 1. 处理键盘事件
         while let Ok(event) = rx.try_recv() {
+            if let types::KeyEvent::ToggleControlPanel = event {
+                open_control_panel(&panel_tx, &mut control_panel);
+                continue;
+            }
             if matches!(event, types::KeyEvent::ToggleShowAll) && !show_all_is_open(&state_machine)
             {
                 let process = match capture_show_all_process(foreground.foreground_executable()) {
@@ -112,6 +132,69 @@ fn main() -> Result<()> {
             hook.set_show_all_open(show_all_is_open(&state_machine));
         }
 
+        // 2.5 处理控制面板的请求（就绪推送状态 / 重载配置 / 保存主题）
+        while let Ok(raw) = panel_rx.try_recv() {
+            match control_panel::parse_panel_message(&raw) {
+                Some(control_panel::PanelCommand::RequestState) => {
+                    if let Some(panel) = control_panel.as_ref() {
+                        let _ = panel.send_state(&configuration.current().theme);
+                    }
+                }
+                Some(control_panel::PanelCommand::ReloadConfig) => {
+                    match reload_configuration(
+                        &configuration,
+                        &config_path,
+                        &plugin_dir,
+                        &mut state_machine,
+                        &mut overlay,
+                        &hook,
+                    ) {
+                        Ok(()) => {
+                            if let Some(panel) = control_panel.as_ref() {
+                                let _ = panel.notify_reload_done();
+                            }
+                        }
+                        Err(error) => log::warn!("控制面板触发的重载失败: {error:#}"),
+                    }
+                }
+                Some(control_panel::PanelCommand::PreviewTheme(theme)) => {
+                    // 实时预览：只应用到浮层，不写配置文件
+                    overlay.execute(types::UiCommand::ApplyTheme { theme })?;
+                }
+                Some(control_panel::PanelCommand::OpenPluginDir) => {
+                    let plugin_dir = config_path
+                        .parent()
+                        .context("配置路径缺少父目录")?
+                        .join("plugins");
+                    std::fs::create_dir_all(&plugin_dir).ok();
+                    std::process::Command::new("explorer.exe")
+                        .arg(&plugin_dir)
+                        .spawn()
+                        .context("打开插件目录失败")?;
+                }
+                Some(control_panel::PanelCommand::SetTheme(theme)) => {
+                    match apply_theme_configuration(
+                        &config_path,
+                        &theme,
+                        &configuration,
+                        &plugin_dir,
+                        &mut state_machine,
+                        &mut overlay,
+                        &hook,
+                    ) {
+                        Ok(()) => {
+                            if let Some(panel) = control_panel.as_ref() {
+                                let _ = panel.notify_theme_saved();
+                                let _ = panel.send_state(&configuration.current().theme);
+                            }
+                        }
+                        Err(error) => log::warn!("保存主题失败: {error:#}"),
+                    }
+                }
+                None => {}
+            }
+        }
+
         if show_all_is_open(&state_machine) {
             match foreground.foreground_executable() {
                 Ok(process) if process == show_all_process => {}
@@ -144,6 +227,8 @@ fn main() -> Result<()> {
             &mut state_machine,
             &mut overlay,
             &hook,
+            &panel_tx,
+            &mut control_panel,
         )?;
 
         // 4. 节流，避免忙等待
@@ -176,6 +261,8 @@ fn pump_messages(
     state_machine: &mut state_machine::StateMachine,
     overlay: &mut overlay_controller::OverlayController,
     hook: &hook::KeyboardHook,
+    panel_tx: &mpsc::Sender<String>,
+    control_panel: &mut Option<control_panel::ControlPanel>,
 ) -> Result<bool> {
     unsafe {
         let mut msg = MSG::default();
@@ -186,30 +273,15 @@ fn pump_messages(
                     match cmd {
                         tray_icon::TrayCommand::Quit => running = false,
                         tray_icon::TrayCommand::ReloadConfig => {
-                            match std::fs::read_to_string(config_path)
-                                .context("读取全局配置失败")
-                                .and_then(|source| {
-                                    configuration.reload(
-                                        &source,
-                                        plugin::BUILTIN_PLUGINS,
-                                        plugin_dir,
-                                    )
-                                }) {
-                                Ok(warnings) => {
-                                    for warning in warnings {
-                                        log::warn!(
-                                            "跳过用户插件 {}: {}",
-                                            warning.path.display(),
-                                            warning.message
-                                        );
-                                    }
-                                    if let Some(command) =
-                                        dismiss_after_successful_reload(state_machine, hook)
-                                    {
-                                        overlay.execute(command)?;
-                                    }
-                                }
-                                Err(error) => log::warn!("配置重载失败，继续使用旧快照: {error:#}"),
+                            if let Err(error) = reload_configuration(
+                                configuration,
+                                config_path,
+                                plugin_dir,
+                                state_machine,
+                                overlay,
+                                hook,
+                            ) {
+                                log::warn!("配置重载失败，继续使用旧快照: {error:#}");
                             }
                         }
                         tray_icon::TrayCommand::OpenConfig => {
@@ -217,6 +289,9 @@ fn pump_messages(
                                 .arg(config_path)
                                 .spawn()
                                 .context("打开全局配置失败")?;
+                        }
+                        tray_icon::TrayCommand::OpenControlPanel => {
+                            open_control_panel(panel_tx, control_panel);
                         }
                     }
                 }
@@ -227,6 +302,99 @@ fn pump_messages(
         }
     }
     Ok(running)
+}
+
+/// 打开（或重新显示）控制面板。首次打开会初始化 WebView2，较慢。
+fn open_control_panel(
+    panel_tx: &mpsc::Sender<String>,
+    control_panel: &mut Option<control_panel::ControlPanel>,
+) {
+    if control_panel.is_none() {
+        match control_panel::ControlPanel::open(panel_tx.clone()) {
+            Ok(panel) => *control_panel = Some(panel),
+            Err(error) => log::error!("控制面板打开失败: {error:#}"),
+        }
+    } else if let Some(panel) = control_panel.as_ref() {
+        let _ = panel.show();
+    }
+}
+
+/// 从磁盘重新读取配置并原子替换运行时快照；成功时收起当前的
+/// 浮层/浏览状态，失败时保留旧快照仅记录日志。
+#[allow(clippy::too_many_arguments)]
+fn reload_configuration(
+    configuration: &config::ConfigurationService,
+    config_path: &std::path::Path,
+    plugin_dir: &std::path::Path,
+    state_machine: &mut state_machine::StateMachine,
+    overlay: &mut overlay_controller::OverlayController,
+    hook: &hook::KeyboardHook,
+) -> Result<()> {
+    let source = std::fs::read_to_string(config_path).context("读取全局配置失败")?;
+    apply_configuration(
+        &source,
+        configuration,
+        config_path,
+        plugin_dir,
+        state_machine,
+        overlay,
+        hook,
+    )
+}
+
+/// 重载配置并把（可能变化的）主题推送到浮层。写入文件由调用方
+/// 完成或无需写入（普通重载）。
+#[allow(clippy::too_many_arguments)]
+fn apply_configuration(
+    source: &str,
+    configuration: &config::ConfigurationService,
+    _config_path: &std::path::Path,
+    plugin_dir: &std::path::Path,
+    state_machine: &mut state_machine::StateMachine,
+    overlay: &mut overlay_controller::OverlayController,
+    hook: &hook::KeyboardHook,
+) -> Result<()> {
+    let warnings = configuration.reload(source, plugin::BUILTIN_PLUGINS, plugin_dir)?;
+    for warning in warnings {
+        log::warn!(
+            "跳过用户插件 {}: {}",
+            warning.path.display(),
+            warning.message
+        );
+    }
+    if let Some(command) = dismiss_after_successful_reload(state_machine, hook) {
+        overlay.execute(command)?;
+    }
+    overlay.execute(types::UiCommand::ApplyTheme {
+        theme: configuration.current().theme.clone(),
+    })?;
+    Ok(())
+}
+
+/// 把新主题写进配置文件（保留其他段落与注释），随后走一次完整的
+/// 配置重载，让主题与其他配置一起原子生效。
+#[allow(clippy::too_many_arguments)]
+fn apply_theme_configuration(
+    config_path: &std::path::Path,
+    theme: &theme::ThemeConfig,
+    configuration: &config::ConfigurationService,
+    plugin_dir: &std::path::Path,
+    state_machine: &mut state_machine::StateMachine,
+    overlay: &mut overlay_controller::OverlayController,
+    hook: &hook::KeyboardHook,
+) -> Result<()> {
+    let source = std::fs::read_to_string(config_path).context("读取全局配置失败")?;
+    let updated = control_panel::write_theme_to_toml(&source, theme)?;
+    std::fs::write(config_path, &updated).context("写回全局配置失败")?;
+    apply_configuration(
+        &updated,
+        configuration,
+        config_path,
+        plugin_dir,
+        state_machine,
+        overlay,
+        hook,
+    )
 }
 
 fn global_config_path() -> Result<std::path::PathBuf> {

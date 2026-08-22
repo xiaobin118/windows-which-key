@@ -20,6 +20,8 @@ The first product milestone focuses on Windows system shortcuts. Application-awa
 - Support alternative shortcuts and multi-key sequences.
 - Keep the existing hold-modifier interaction.
 - Add a configurable “show all shortcuts” hotkey, initially `Win+Shift+/`, for unmodified keys such as `F2` and `F12`.
+- Add a global “open control panel” hotkey, initially `Win+Shift+C`; it is intercepted and swallowed like the show-all hotkey. Single left-click on the tray icon also opens the panel.
+- The `[theme]` section of the global config is parsed into the configuration snapshot and applied to the overlay as CSS variables; the control panel edits it via `toml_edit` so other sections and comments are preserved.
 - Only the application's own show-all hotkey and `Esc` while that panel is open are intercepted. Normal shortcuts pass through to the active application.
 - First version does not detect application-internal modes. Context-specific shortcuts use categories such as “幻灯片放映”.
 - First version excludes mouse shortcuts, online marketplaces, executable plugins, Web Office, and automatic shortcut execution.
@@ -50,10 +52,18 @@ The approved implementation plan is in `docs/superpowers/plans/2026-08-21-applic
 - Foreground application resolution: complete for executable-name matching.
 - Show-all and modifier interactions: complete.
 - Built-in plugins: VS Code, Word, Excel, and PowerPoint.
+- Control panel (`src/control_panel.{rs,html}`): separate activatable window opened from the tray menu or `Win+Shift+C`; shows hotkeys, plugin inventory, paths, and an editable theme (saved to `[theme]` with comments preserved, applied live to the overlay).
 - Automated verification: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, and `cargo test --all-targets` passed offline with the E:\\rust toolchain homes (65 library tests and 4 binary tests).
 - Final review fixes include real modifier-aware sequence resolution, exact root-entry filtering, optional plugin descriptions, and a keyboard-hook install/uninstall handshake that reports failures and joins its worker thread.
 - Manual Windows application smoke: pending for VS Code, Office, and multi-monitor cases.
 
+- Overlay layout: neovim which-key style — anchored to the bottom edge of the screen, full width, entries flow in auto-filled columns, and the window height is estimated per render so all entries are visible without scrolling.
+- Control panel window is centered on the primary screen; theme edits preview live on the overlay and are persisted only by the explicit save button.
+
 ## Known Verification Gap
 
 The Windows smoke matrix requires installed target applications and an interactive Windows desktop. Do not record it as passed until those manual cases have been run.
+
+## Bug Log
+
+- 2026-08-22 — Overlay footer not pinned to the bottom when the entry list is shorter than the window (for example after pressing Ctrl then Shift, which filters down to the `C-S-` list). The footer sat right after the last entry instead of at the container bottom. `position: sticky` did not help because a short list never scrolls. Fixed by making `.container.visible` a vertical flex column and giving `.footer` `margin-top: auto`.

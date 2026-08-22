@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["config","hook","overlay_controller","registry","state_machine","tray_icon","types","webview_bridge","window_manager"]};

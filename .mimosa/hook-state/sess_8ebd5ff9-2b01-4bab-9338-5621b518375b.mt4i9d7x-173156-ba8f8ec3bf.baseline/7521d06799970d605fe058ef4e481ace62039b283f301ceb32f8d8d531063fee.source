@@ -1,0 +1,50 @@
+//! 验证 SetProcessDpiAwarenessContext 是否成功、GetDpiForWindow 是否返回真实 DPI。
+
+use windows::Win32::Foundation::{HINSTANCE, HWND};
+use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows::Win32::UI::HiDpi::{
+    GetDpiForWindow, SetProcessDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
+};
+use windows::Win32::UI::WindowsAndMessaging::{CreateWindowExW, RegisterClassExW, DefWindowProcW,
+    WNDCLASSEXW, CS_HREDRAW, CS_VREDRAW, WINDOW_EX_STYLE, WINDOW_STYLE, WS_POPUP};
+use windows::Win32::Foundation::{LPARAM, LRESULT, WPARAM};
+
+unsafe extern "system" fn proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
+    DefWindowProcW(hwnd, msg, wp, lp)
+}
+
+fn main() {
+    unsafe {
+        let result = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+        eprintln!("SetProcessDpiAwarenessContext: {:?}", result);
+
+        let instance = GetModuleHandleW(None).unwrap();
+        let instance = HINSTANCE(instance.0);
+        let class_name = windows::core::w!("DpiProbe");
+        let wc = WNDCLASSEXW {
+            cbSize: std::mem::size_of::<WNDCLASSEXW>() as u32,
+            style: CS_HREDRAW | CS_VREDRAW,
+            lpfnWndProc: Some(proc),
+            hInstance: instance,
+            lpszClassName: class_name,
+            ..Default::default()
+        };
+        RegisterClassExW(&wc);
+        let hwnd = CreateWindowExW(
+            WINDOW_EX_STYLE::default(),
+            class_name,
+            windows::core::w!("dpi"),
+            WS_POPUP | WINDOW_STYLE(0),
+            100,
+            100,
+            300,
+            200,
+            None,
+            None,
+            instance,
+            None,
+        )
+        .unwrap();
+        eprintln!("GetDpiForWindow: {}", GetDpiForWindow(hwnd));
+    }
+}

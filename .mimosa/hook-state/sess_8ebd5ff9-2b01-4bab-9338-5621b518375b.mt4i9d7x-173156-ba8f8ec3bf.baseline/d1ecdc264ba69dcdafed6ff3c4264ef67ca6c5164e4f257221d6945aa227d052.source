@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["KeyEvent","Modifier","ResolveResult","UiCommand"],"struct":["DisplayEntry","Key","ModifierSet","Node","ShortcutKey"]};

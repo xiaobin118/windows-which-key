@@ -5,6 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Which-Key</title>
     <style>
+        :root {
+            --bg-gradient-start: #12182D;
+            --bg-gradient-end: #0A0E1C;
+            --glow-purple: rgba(111, 92, 255, 0.18);
+            --glow-blue: rgba(97, 140, 255, 0.10);
+            --border-soft: rgba(145, 164, 255, 0.2);
+            --border-medium: rgba(145, 164, 255, 0.25);
+            --border-strong: rgba(145, 164, 255, 0.28);
+            --divider: rgba(145, 164, 255, 0.12);
+            --accent-start: #618CFF;
+            --accent-end: #8C6BFF;
+            --surface: #1A2138;
+            --keycap-start: #20294A;
+            --keycap-end: #161D36;
+            --text-primary: #EDF1FF;
+            --text-keycap: #DFE7FF;
+            --text-accent: #A9C5FF;
+            --text-muted: rgba(210, 220, 255, 0.56);
+            --text-faint: rgba(210, 220, 255, 0.45);
+            --row-gap: 6px;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -13,29 +35,40 @@
 
         body {
             font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
-            background: transparent;
+            background: var(--bg-gradient-end);
             color: #fff;
             overflow: hidden;
             user-select: none;
         }
 
+        /* 面板与窗口完全重合：无圆角、无外边距、无投影，
+           窗口边缘即面板边缘，不存在面板外的可见区域 */
         .container {
             display: none;
-            width: min(640px, calc(100vw - 32px));
+            width: 100vw;
+            min-height: 100vh;
             background:
-                radial-gradient(circle at 100% 0%, rgba(111, 92, 255, 0.18), transparent 38%),
-                linear-gradient(145deg, rgba(19, 25, 48, 0.94), rgba(11, 15, 31, 0.91));
-            backdrop-filter: blur(24px);
-            -webkit-backdrop-filter: blur(24px);
-            border: 1px solid rgba(145, 164, 255, 0.2);
-            border-radius: 20px;
-            padding: 18px;
+                radial-gradient(circle at 100% 0%, var(--glow-purple), transparent 38%),
+                radial-gradient(circle at 0% 100%, var(--glow-blue), transparent 42%),
+                linear-gradient(145deg, var(--bg-gradient-start), var(--bg-gradient-end));
+            border: 1px solid var(--border-soft);
             max-height: 100vh;
             overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(145, 164, 255, 0.3) transparent;
         }
 
+        .container::-webkit-scrollbar { width: 4px; }
+        .container::-webkit-scrollbar-track { background: transparent; }
+        .container::-webkit-scrollbar-thumb {
+            background: rgba(145, 164, 255, 0.3);
+            border-radius: 999px;
+        }
+        .container::-webkit-scrollbar-thumb:hover { background: rgba(145, 164, 255, 0.5); }
+
         .container.visible {
-            display: block;
+            display: flex;
+            flex-direction: column;
         }
 
         .topbar {
@@ -57,10 +90,12 @@
             width: 34px;
             height: 34px;
             place-items: center;
-            color: #dfe7ff;
-            font: 700 16px/1 Consolas, 'Courier New', monospace;
-            background: linear-gradient(135deg, #618cff, #8c6bff);
+            color: var(--text-keycap);
+            font: 700 13px/1 Consolas, 'Courier New', monospace;
+            letter-spacing: -0.04em;
+            background: linear-gradient(135deg, var(--accent-start), var(--accent-end));
             border-radius: 10px;
+            box-shadow: 0 3px 10px rgba(97, 108, 255, 0.35);
         }
 
         .title {
@@ -71,40 +106,92 @@
 
         .subtitle {
             margin-top: 3px;
-            color: rgba(210, 220, 255, 0.56);
+            color: var(--text-muted);
             font-size: 11px;
         }
 
-        .context-chip {
+        .status-chip {
             flex: 0 0 auto;
-            padding: 6px 9px;
-            color: #a9c5ff;
-            font: 700 10px/1 Consolas, 'Courier New', monospace;
-            letter-spacing: 0.08em;
-            background: rgba(83, 137, 255, 0.12);
-            border: 1px solid rgba(111, 155, 255, 0.24);
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            padding: 6px 11px;
+            color: var(--text-accent);
+            font: 600 11px/1 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: var(--surface);
+            border: 1px solid var(--border-medium);
             border-radius: 999px;
         }
 
-        .breadcrumb {
-            font-size: 12px;
-            color: rgba(210, 220, 255, 0.58);
-            margin: 0 4px 12px;
-            padding: 10px 0 12px;
-            border-top: 1px solid rgba(145, 164, 255, 0.12);
-            border-bottom: 1px solid rgba(145, 164, 255, 0.12);
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent-start), var(--accent-end));
+            box-shadow: 0 0 6px rgba(120, 120, 255, 0.8);
         }
 
-        .breadcrumb span { margin: 0 3px; }
-        .breadcrumb span:last-child { color: #dfe7ff; font-weight: 600; }
+        .app-name {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 0 4px 12px;
+            color: var(--text-primary);
+            font-size: 14px;
+            font-weight: 700;
+        }
 
-        .entries { display: flex; flex-direction: column; gap: 6px; }
+        .app-name::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            border-radius: 3px;
+            background: linear-gradient(135deg, var(--accent-start), var(--accent-end));
+        }
+
+        .breadcrumb {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px;
+            margin: 0 4px 12px;
+            padding: 10px 0;
+            border-top: 1px solid var(--divider);
+            border-bottom: 1px solid var(--divider);
+        }
+
+        .crumb {
+            padding: 3px 8px;
+            color: var(--text-keycap);
+            font: 600 11px/1.4 Consolas, 'Courier New', monospace;
+            background: var(--surface);
+            border: 1px solid var(--border-medium);
+            border-radius: 6px;
+        }
+
+        .crumb-separator {
+            color: rgba(145, 164, 255, 0.5);
+            font-size: 12px;
+        }
+
+        .crumb.active {
+            color: #fff;
+            background: linear-gradient(135deg, var(--accent-start), var(--accent-end));
+            border-color: rgba(140, 107, 255, 0.55);
+        }
+
+        /* neovim which-key 风格：条目横向多列平铺，占满窗口宽度 */
+        .entries {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: var(--row-gap) 24px;
+        }
 
         .entry {
             display: flex;
             align-items: center;
-            min-height: 44px;
-            padding: 8px 12px;
+            min-height: 42px;
+            padding: 6px 10px;
             border: 1px solid transparent;
             border-radius: 10px;
             transition: background 0.15s, border-color 0.15s, transform 0.15s;
@@ -117,51 +204,92 @@
         }
 
         .entry.group {
-            border-left: 3px solid #6d8dff;
+            border-left: 3px solid #6D8DFF;
             padding-left: 9px;
             background: rgba(93, 116, 255, 0.08);
         }
 
         .key {
-            font-family: 'Consolas', 'Courier New', monospace;
+            flex: 0 0 auto;
+            font-family: Consolas, 'Courier New', monospace;
             font-size: 13px;
             font-weight: 600;
-            color: #a9c5ff;
-            min-width: 74px;
+            color: var(--text-keycap);
+            min-width: 72px;
             text-align: center;
-            background: rgba(83, 137, 255, 0.13);
-            border: 1px solid rgba(111, 155, 255, 0.2);
-            padding: 4px 8px;
-            border-radius: 7px;
+            background: linear-gradient(145deg, var(--keycap-start), var(--keycap-end));
+            border: 1px solid var(--border-strong);
+            padding: 5px 8px;
+            border-radius: 8px;
+            box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
             margin-right: 12px;
         }
 
-        .desc { font-size: 13px; color: rgba(237, 241, 255, 0.92); flex: 1; }
+        .entry.essential .key {
+            color: #fff;
+            background: linear-gradient(145deg, var(--accent-start), var(--accent-end));
+            border-color: rgba(140, 107, 255, 0.55);
+            box-shadow: 0 2px 0 rgba(31, 24, 86, 0.6);
+        }
+
+        .desc {
+            flex: 1;
+            min-width: 0;
+            font-size: 13px;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
 
         .group-indicator {
-            font-size: 11px;
+            flex: 0 0 auto;
+            font-size: 13px;
             color: rgba(142, 167, 255, 0.85);
-            margin-left: auto;
-            padding-left: 8px;
+            margin-left: 8px;
+            padding-left: 4px;
         }
 
-        .app-name, .category { font-weight: 700; margin: 8px 4px; }
-        .app-name { color: #edf1ff; font-size: 14px; }
-        .category { color: #a9c5ff; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
+        .category {
+            grid-column: 1 / -1;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 8px 4px 2px;
+            color: rgba(145, 164, 255, 0.6);
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .category:first-child { margin-top: 0; }
+
+        .count-badge {
+            padding: 2px 7px;
+            color: var(--text-accent);
+            font: 700 10px/1.4 Consolas, 'Courier New', monospace;
+            background: rgba(97, 140, 255, 0.12);
+            border: 1px solid rgba(111, 155, 255, 0.24);
+            border-radius: 999px;
+        }
+
         .entry.essential .desc { font-weight: 700; }
         .entry.recommended .desc { font-weight: 500; }
-        .entry.advanced .desc { opacity: 0.72; }
+        .entry.advanced .desc { opacity: 0.8; }
 
+        /* 内容不足一屏时贴住容器底部（纵向 flex + margin-top:auto） */
         .footer {
             display: flex;
-            justify-content: flex-end;
-            margin-top: 14px;
-            padding: 0 4px;
-            color: rgba(210, 220, 255, 0.42);
-            font: 10px Consolas, 'Courier New', monospace;
+            justify-content: space-between;
+            gap: 12px;
+            margin-top: auto;
+            padding: 14px 4px 0;
+            color: var(--text-faint);
+            font-size: 11px;
         }
 
-        /* Animation */
+        /* Animation：底板由页面自绘，opacity 渐变在页面内部合成即可 */
         @keyframes fadeIn {
             from {
                 opacity: 0;
@@ -182,18 +310,18 @@
     <div class="container" id="container">
         <div class="topbar">
             <div class="brand">
-                <div class="brand-mark">⌘</div>
+                <div class="brand-mark">W/K</div>
                 <div>
                     <div class="title">Which-Key</div>
-                    <div class="subtitle">Keyboard shortcuts available in this context</div>
+                    <div class="subtitle">Windows 全局快捷键 · Win+Shift+/ 唤起</div>
                 </div>
             </div>
-            <div class="context-chip">ACTIVE · GLOBALS</div>
+            <div class="status-chip"><span class="status-dot"></span><span id="status-text">就绪</span></div>
         </div>
         <div class="app-name" id="app-name"></div>
         <div class="breadcrumb" id="breadcrumb"></div>
         <div class="entries" id="entries"></div>
-        <div class="footer">ESC to close</div>
+        <div class="footer"><span id="footer-hint">键入字符继续筛选</span><span>Esc 关闭</span></div>
     </div>
 
     <script>
@@ -201,58 +329,74 @@
         const breadcrumbEl = document.getElementById('breadcrumb');
         const entriesEl = document.getElementById('entries');
         const appNameEl = document.getElementById('app-name');
+        const statusTextEl = document.getElementById('status-text');
+        const footerHintEl = document.getElementById('footer-hint');
 
-        function renderEntries(entries, breadcrumb, clear = true) {
-            // Update breadcrumb
+        function setStatusCount(count) {
+            statusTextEl.textContent = count + ' 项可用';
+        }
+
+        function buildEntry(entry) {
+            const div = document.createElement('div');
+            div.className = 'entry ' + (entry.priority || 'recommended') + (entry.is_group ? ' group' : '');
+
+            const keySpan = document.createElement('span');
+            keySpan.className = 'key';
+            keySpan.textContent = entry.key;
+
+            const descSpan = document.createElement('span');
+            descSpan.className = 'desc';
+            descSpan.textContent = entry.desc;
+
+            div.appendChild(keySpan);
+            div.appendChild(descSpan);
+
+            if (entry.is_group) {
+                const indicator = document.createElement('span');
+                indicator.className = 'group-indicator';
+                indicator.textContent = '›';
+                div.appendChild(indicator);
+            }
+
+            return div;
+        }
+
+        function renderBreadcrumb(breadcrumb) {
+            breadcrumbEl.replaceChildren();
             if (breadcrumb.length > 0) {
-                breadcrumbEl.replaceChildren();
                 breadcrumb.forEach((item, index) => {
                     if (index > 0) {
                         const separator = document.createElement('span');
+                        separator.className = 'crumb-separator';
                         separator.textContent = '›';
                         breadcrumbEl.appendChild(separator);
                     }
 
                     const crumb = document.createElement('span');
+                    crumb.className = 'crumb' + (index === breadcrumb.length - 1 ? ' active' : '');
                     crumb.textContent = item;
                     breadcrumbEl.appendChild(crumb);
                 });
-                breadcrumbEl.style.display = 'block';
+                breadcrumbEl.style.display = 'flex';
             } else {
-                breadcrumbEl.replaceChildren();
                 breadcrumbEl.style.display = 'none';
             }
+        }
 
-            // Clear and render entries
+        function renderEntries(entries, breadcrumb, clear = true) {
+            renderBreadcrumb(breadcrumb);
+
             if (clear) entriesEl.replaceChildren();
             entries.forEach(entry => {
-                const div = document.createElement('div');
-                div.className = 'entry ' + (entry.priority || 'recommended') + (entry.is_group ? ' group' : '');
-
-                const keySpan = document.createElement('span');
-                keySpan.className = 'key';
-                keySpan.textContent = entry.key;
-
-                const descSpan = document.createElement('span');
-                descSpan.className = 'desc';
-                descSpan.textContent = entry.desc;
-
-                div.appendChild(keySpan);
-                div.appendChild(descSpan);
-
-                if (entry.is_group) {
-                    const indicator = document.createElement('span');
-                    indicator.className = 'group-indicator';
-                    indicator.textContent = '▶';
-                    div.appendChild(indicator);
-                }
-
-                entriesEl.appendChild(div);
+                entriesEl.appendChild(buildEntry(entry));
             });
+
+            setStatusCount(entries.length);
         }
 
         function renderGroupedEntries(entries) {
             entriesEl.replaceChildren();
+
             const categories = new Map();
             entries.forEach(entry => {
                 const category = entry.category || 'Other';
@@ -262,10 +406,23 @@
             categories.forEach((categoryEntries, category) => {
                 const heading = document.createElement('div');
                 heading.className = 'category';
-                heading.textContent = category;
+
+                const label = document.createElement('span');
+                label.textContent = category;
+                heading.appendChild(label);
+
+                const badge = document.createElement('span');
+                badge.className = 'count-badge';
+                badge.textContent = categoryEntries.length;
+                heading.appendChild(badge);
+
                 entriesEl.appendChild(heading);
-                renderEntries(categoryEntries, [], false);
+                categoryEntries.forEach(entry => {
+                    entriesEl.appendChild(buildEntry(entry));
+                });
             });
+
+            setStatusCount(entries.length);
         }
 
         function show() {
@@ -292,10 +449,40 @@
             }
         });
 
+        // ── 主题应用：把 ThemeConfig 的字段映射到 CSS 变量 ──
+        function hexToRgb(hex) {
+            const n = parseInt(hex.slice(1), 16);
+            return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+        }
+
+        function hexToRgba(hex, alpha) {
+            const [r, g, b] = hexToRgb(hex);
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+
+        function darken(hex, factor) {
+            const [r, g, b] = hexToRgb(hex);
+            const mix = (c) => Math.round(c * factor);
+            return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`;
+        }
+
+        function applyTheme(theme) {
+            const root = document.documentElement.style;
+            root.setProperty('--bg-gradient-start', theme.background);
+            root.setProperty('--bg-gradient-end', darken(theme.background, 0.55));
+            root.setProperty('--border-soft', hexToRgba(theme.border, theme.border_opacity));
+            root.setProperty('--accent-start', theme.accent);
+            root.setProperty('--accent-end', theme.accent);
+            root.setProperty('--text-primary', theme.text_primary);
+            root.setProperty('--text-muted', hexToRgba(theme.text_secondary, 0.6));
+            root.setProperty('--row-gap', theme.row_spacing + 'px');
+        }
+
         function handleMessage(data) {
             switch (data.type) {
                 case 'show':
                     appNameEl.style.display = 'none';
+                    footerHintEl.textContent = '键入字符继续筛选 · Win+Shift+C 设置';
                     show();
                     renderEntries(data.entries || [], data.breadcrumb || []);
                     break;
@@ -305,13 +492,17 @@
                     break;
                 case 'showAll':
                     appNameEl.textContent = data.appName || 'Windows';
-                    appNameEl.style.display = 'block';
+                    appNameEl.style.display = 'flex';
                     breadcrumbEl.style.display = 'none';
+                    footerHintEl.textContent = 'Win+Shift+/ 收起 · 键入前缀深入分组 · Win+Shift+C 设置';
                     show();
                     renderGroupedEntries(data.entries || []);
                     break;
                 case 'hide':
                     hide();
+                    break;
+                case 'theme':
+                    applyTheme(data.theme || {});
                     break;
             }
         }
