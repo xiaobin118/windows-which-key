@@ -179,6 +179,40 @@ fn main() -> Result<()> {
                         .spawn()
                         .context("打开插件目录失败")?;
                 }
+                Some(control_panel::PanelCommand::CreatePluginTemplate) => {
+                    let plugin_dir = config_path
+                        .parent()
+                        .context("配置路径缺少父目录")?
+                        .join("plugins");
+                    std::fs::create_dir_all(&plugin_dir).ok();
+                    let plugin_path = next_plugin_template_path(&plugin_dir)?;
+                    std::fs::write(&plugin_path, control_panel::default_plugin_template())
+                        .with_context(|| format!("写入插件模板失败: {}", plugin_path.display()))?;
+                    std::process::Command::new("notepad.exe")
+                        .arg(&plugin_path)
+                        .spawn()
+                        .with_context(|| format!("打开插件模板失败: {}", plugin_path.display()))?;
+                    if let Some(panel) = control_panel.as_ref() {
+                        let _ = panel.send_state(&configuration.current().theme);
+                    }
+                }
+                Some(control_panel::PanelCommand::OpenPluginFile(file)) => {
+                    let plugin_dir = config_path
+                        .parent()
+                        .context("配置路径缺少父目录")?
+                        .join("plugins");
+                    let plugin_path = plugin_dir.join(&file);
+                    if !plugin_path.starts_with(&plugin_dir) {
+                        anyhow::bail!("插件文件路径非法");
+                    }
+                    if !plugin_path.exists() {
+                        anyhow::bail!("插件文件不存在: {}", plugin_path.display());
+                    }
+                    std::process::Command::new("notepad.exe")
+                        .arg(&plugin_path)
+                        .spawn()
+                        .with_context(|| format!("打开插件文件失败: {}", plugin_path.display()))?;
+                }
                 Some(control_panel::PanelCommand::ExportPlugins) => {
                     let plugin_dir = config_path
                         .parent()
@@ -666,6 +700,21 @@ fn create_default_config(path: &std::path::Path) -> Result<()> {
         .with_context(|| format!("创建默认配置失败: {}", path.display()))?;
     log::info!("已创建默认配置: {}", path.display());
     Ok(())
+}
+
+fn next_plugin_template_path(plugin_dir: &std::path::Path) -> Result<std::path::PathBuf> {
+    for index in 1..=9999 {
+        let name = if index == 1 {
+            "plugin.toml".to_string()
+        } else {
+            format!("plugin-{index}.toml")
+        };
+        let candidate = plugin_dir.join(name);
+        if !candidate.exists() {
+            return Ok(candidate);
+        }
+    }
+    anyhow::bail!("无法生成新的插件文件名")
 }
 
 #[cfg(test)]

@@ -666,6 +666,7 @@
                     <div class="card-title">用户插件</div>
                     <div class="card-desc">把 .toml 文件放进以下目录即可生效，优先级高于内置插件。</div>
                     <div class="actions" style="margin-bottom:10px">
+                        <button class="btn btn-ghost" id="btn-create-plugin-template">新建插件模板</button>
                         <button class="btn btn-primary" id="btn-open-plugin-dir">打开插件目录</button>
                     </div>
                     <div id="user-plugins"></div>
@@ -994,6 +995,16 @@
             return badge;
         }
 
+        function actionButtonNode(text, onClick) {
+            const button = document.createElement('button');
+            button.className = 'btn btn-ghost';
+            button.style.padding = '6px 10px';
+            button.style.minHeight = '28px';
+            button.textContent = text;
+            button.addEventListener('click', onClick);
+            return button;
+        }
+
         function buildPluginCard(avatarSeed, name, subtitle, rightNodes, flags = {}) {
             const card = document.createElement('div');
             card.className = 'plugin-card';
@@ -1057,6 +1068,11 @@
                         badgeNode(plugin.bindings + ' 条'),
                         tagNode('用户', 'user'),
                     ];
+                    if (plugin.valid) {
+                        rightNodes.push(actionButtonNode('编辑', () => {
+                            sendToHost({ type: 'openPluginFile', file: plugin.file });
+                        }));
+                    }
                     if (plugin.disabled) rightNodes.push(tagNode('已禁用', 'disabled'));
                     if (!plugin.valid) rightNodes.push(tagNode('无效', 'disabled'));
                     const subtitle = plugin.valid
@@ -1255,6 +1271,10 @@
 
         document.getElementById('btn-open-plugin-dir').addEventListener('click', () => {
             sendToHost({ type: 'openPluginDir' });
+        });
+
+        document.getElementById('btn-create-plugin-template').addEventListener('click', () => {
+            sendToHost({ type: 'createPluginTemplate' });
         });
 
         document.getElementById('btn-export-plugins').addEventListener('click', () => {

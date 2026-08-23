@@ -38,6 +38,10 @@ pub enum PanelCommand {
     ExportPlugins,
     /// 从单个 JSON 文件导入插件包。
     ImportPlugins,
+    /// 新建一个用户插件模板文件。
+    CreatePluginTemplate,
+    /// 打开指定用户插件文件。
+    OpenPluginFile(String),
     /// 页面加载完成，请求推送完整状态（解决 NavigateToString 异步竞态）。
     RequestState,
 }
@@ -239,6 +243,11 @@ pub fn parse_panel_message(raw: &str) -> Option<PanelCommand> {
         Some("openPluginDir") => Some(PanelCommand::OpenPluginDir),
         Some("exportPlugins") => Some(PanelCommand::ExportPlugins),
         Some("importPlugins") => Some(PanelCommand::ImportPlugins),
+        Some("createPluginTemplate") => Some(PanelCommand::CreatePluginTemplate),
+        Some("openPluginFile") => value
+            .get("file")
+            .and_then(|file| file.as_str())
+            .map(|file| PanelCommand::OpenPluginFile(file.to_string())),
         Some(kind @ ("setTheme" | "previewTheme")) => {
             match serde_json::from_value::<ThemeConfig>(
                 value
@@ -416,6 +425,21 @@ fn global_config_path() -> Result<std::path::PathBuf> {
         .join("which-key.toml"))
 }
 
+pub fn default_plugin_template() -> &'static str {
+    r#"schema_version = 1
+id = "my-app"
+name = "My App"
+description = "自定义应用插件"
+processes = ["MyApp.exe"]
+
+[[bindings]]
+keys = ["Ctrl+K"]
+description = "示例快捷键"
+category = "常用"
+priority = "recommended"
+"#
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -526,6 +550,14 @@ disabled = true
         assert_eq!(
             parse_panel_message(r#"{"type":"importPlugins"}"#),
             Some(PanelCommand::ImportPlugins)
+        );
+        assert_eq!(
+            parse_panel_message(r#"{"type":"createPluginTemplate"}"#),
+            Some(PanelCommand::CreatePluginTemplate)
+        );
+        assert_eq!(
+            parse_panel_message(r#"{"type":"openPluginFile","file":"a.toml"}"#),
+            Some(PanelCommand::OpenPluginFile("a.toml".to_string()))
         );
     }
 
