@@ -1,13 +1,11 @@
-# Windows Which-Key v1.5.0
+# Windows Which-Key v1.5.1
 
 Windows Which-Key 是 Windows 桌面快捷键提示工具：按住修饰键即可查看当前应用可用的快捷键。它不会执行或拦截普通快捷键。
 
-English documentation: [README.md](README.md)。
-
 ## v1.5 新功能
 
-- 浮层会显示当前应用上下文，例如 Codex、Claude Code、VS Code、Word、Excel 或 PowerPoint。
-- 内置插件新增 Codex 和 Claude Code，并继续包含 VS Code 与 Microsoft Office 常用应用。
+- 浮层会显示当前应用上下文，例如 Codex Desktop、Codex CLI、Claude Code、VS Code、Word、Excel 或 PowerPoint。
+- 内置插件新增 Codex Desktop，并保留 Codex CLI、Claude Code 与常见办公应用。
 - 控制面板支持主题编辑、开机自启开关、插件导入/导出、新建插件模板、直接编辑用户插件文件。
 - 托盘菜单支持重新加载配置、打开配置文件、打开配置目录、打开插件目录、打开控制面板和退出。
 
@@ -22,7 +20,7 @@ English documentation: [README.md](README.md)。
 从 [GitHub Releases](https://github.com/xiaobin118/windows-which-key/releases) 下载发布包：
 
 - NSIS 安装器：运行 `which-key-windows-setup.exe`。它会安装程序、创建开始菜单和桌面快捷方式，并注册卸载项。
-- 便携版 zip：解压 `which-key-windows-v1.5.0-windows-x64.zip`，然后运行 `which-key-windows.exe`。
+- 便携版 zip：解压 `which-key-windows-v1.5.1-windows-x64.zip`，然后运行 `which-key-windows.exe`。
 - 源码运行：克隆仓库后执行 `cargo run --bin which-key-windows`。
 
 在项目根目录运行：
@@ -43,7 +41,7 @@ cargo run --bin which-key-windows
 %APPDATA%\which-key-windows\plugins\
 ```
 
-内置插件覆盖 Codex、Claude Code、VS Code、Word、Excel 与 PowerPoint。Windows 全局快捷键会与当前应用的快捷键合并显示。
+内置插件覆盖 Codex Desktop、Codex CLI、Claude Code、VS Code、Word、Excel 与 PowerPoint。Windows 全局快捷键会与当前应用的快捷键合并显示。
 
 可以通过 `Win+Shift+C` 或托盘图标打开控制面板。在控制面板中可以打开配置文件、打开插件目录、导入/导出插件包、新建插件模板、编辑用户插件、调整主题和切换开机自启。
 
@@ -103,7 +101,7 @@ priority = "essential"
 仓库发布页会提供 GitHub Release 资源包。下载最新的安装器或便携版 zip 都可以。
 
 - 安装器：运行 `which-key-windows-setup.exe`，按提示完成安装。
-- 便携版：解压 `which-key-windows-v1.5.0-windows-x64.zip` 后直接运行 `which-key-windows.exe`。
+- 便携版：解压 `which-key-windows-v1.5.1-windows-x64.zip` 后直接运行 `which-key-windows.exe`。
 
 发布包只保留最必要的文件：
 

@@ -4,7 +4,18 @@ use windows::Win32::Foundation::{CloseHandle, HANDLE};
 use windows::Win32::System::Threading::{
     OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
 };
-use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
+use windows::Win32::UI::WindowsAndMessaging::{
+    GetForegroundWindow, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId,
+};
+
+const TERMINAL_HOSTS: &[&str] = &[
+    "windowsterminal.exe",
+    "openconsole.exe",
+    "cmd.exe",
+    "pwsh.exe",
+    "powershell.exe",
+    "wt.exe",
+];
 
 pub trait ForegroundAppProvider {
     fn foreground_executable(&self) -> Result<Option<String>>;
@@ -57,7 +68,17 @@ impl ForegroundAppProvider for Win32ForegroundAppProvider {
 
             let executable_path = String::from_utf16(&executable_path[..length as usize])
                 .context("foreground executable path is not valid UTF-16")?;
-            Ok(normalize_executable_path(&executable_path))
+            let executable_name = normalize_executable_path(&executable_path);
+            if executable_name
+                .as_deref()
+                .is_some_and(|name| TERMINAL_HOSTS.contains(&name))
+            {
+                if let Some(alias) = window_title_alias(foreground_window)? {
+                    return Ok(Some(alias));
+                }
+            }
+
+            Ok(executable_name)
         }
     }
 }
@@ -65,6 +86,36 @@ impl ForegroundAppProvider for Win32ForegroundAppProvider {
 pub fn normalize_executable_path(path: &str) -> Option<String> {
     let executable_name = path.rsplit(['\\', '/']).next()?.trim();
     (!executable_name.is_empty()).then(|| executable_name.to_lowercase())
+}
+
+fn window_title_alias(hwnd: windows::Win32::Foundation::HWND) -> Result<Option<String>> {
+    unsafe {
+        let length = GetWindowTextLengthW(hwnd);
+        if length <= 0 {
+            return Ok(None);
+        }
+
+        let mut buffer = vec![0u16; length as usize + 1];
+        let written = GetWindowTextW(hwnd, &mut buffer);
+        if written <= 0 {
+            return Ok(None);
+        }
+
+        let title = String::from_utf16(&buffer[..written as usize])
+            .context("foreground window title is not valid UTF-16")?;
+        Ok(title_to_alias(&title))
+    }
+}
+
+fn title_to_alias(title: &str) -> Option<String> {
+    let lower = title.trim().to_lowercase();
+    if lower.contains("claude code") || lower.contains("claude") {
+        return Some("claude.exe".to_string());
+    }
+    if lower.contains("codex") {
+        return Some("codex.exe".to_string());
+    }
+    None
 }
 
 #[cfg(test)]
@@ -105,5 +156,15 @@ mod tests {
             win32_error.code(),
             windows::core::HRESULT(0x8007_0005u32 as i32)
         );
+    }
+
+    #[test]
+    fn title_alias_recognizes_codex_and_claude() {
+        assert_eq!(title_to_alias("Codex - session"), Some("codex.exe".to_string()));
+        assert_eq!(
+            title_to_alias("Claude Code - workspace"),
+            Some("claude.exe".to_string())
+        );
+        assert_eq!(title_to_alias("Windows PowerShell"), None);
     }
 }

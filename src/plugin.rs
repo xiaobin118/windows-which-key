@@ -11,6 +11,10 @@ use crate::types::{BindingMetadata, BindingPriority, ShortcutKey};
 pub const BUILTIN_PLUGINS: &[(&str, &str)] = &[
     ("codex.toml", include_str!("../plugins/builtin/codex.toml")),
     (
+        "codex-desktop.toml",
+        include_str!("../plugins/builtin/codex-desktop.toml"),
+    ),
+    (
         "claude.toml",
         include_str!("../plugins/builtin/claude.toml"),
     ),
@@ -480,6 +484,7 @@ priority = "essential"
         assert!(report.warnings.is_empty());
         for process in [
             "codex.exe",
+            "chatgpt.exe",
             "claude.exe",
             "code.exe",
             "winword.exe",

@@ -1,15 +1,13 @@
-# Windows Which-Key v1.5.0
+# Windows Which-Key v1.5.1
 
-Windows Which-Key is a Windows desktop shortcut helper. Hold a modifier key to see the shortcuts available in the active app. It does not execute or intercept normal shortcuts.
+Windows Which-Key 是 Windows 桌面快捷键提示工具：按住修饰键即可查看当前应用可用的快捷键。它不会执行或拦截普通快捷键。
 
-中文说明见 [README.zh-CN.md](README.zh-CN.md).
+## v1.5 新功能
 
-## What's New in v1.5
-
-- Floating overlay now shows the active app context, such as Codex, Claude Code, VS Code, Word, Excel, or PowerPoint.
-- Built-in plugins now include Codex and Claude Code in addition to VS Code and Microsoft Office apps.
-- Control panel includes theme editing, autostart toggle, plugin import/export, plugin template creation, and direct plugin file editing.
-- Tray menu provides quick access to reload config, open config, open config directory, open plugin directory, control panel, and quit.
+- 浮层会显示当前应用上下文，例如 Codex Desktop、Codex CLI、Claude Code、VS Code、Word、Excel 或 PowerPoint。
+- 内置插件新增 Codex Desktop，并保留 Codex CLI、Claude Code 与常见办公应用。
+- 控制面板支持主题编辑、开机自启开关、插件导入/导出、新建插件模板、直接编辑用户插件文件。
+- 托盘菜单支持重新加载配置、打开配置文件、打开配置目录、打开插件目录、打开控制面板和退出。
 
 ## Quick Start
 
@@ -22,7 +20,7 @@ Windows Which-Key is a Windows desktop shortcut helper. Hold a modifier key to s
 Use one of the release packages from [GitHub Releases](https://github.com/xiaobin118/windows-which-key/releases):
 
 - NSIS installer: run `which-key-windows-setup.exe`. It installs the app, creates Start Menu and desktop shortcuts, and registers an uninstaller.
-- Portable zip: unzip `which-key-windows-v1.5.0-windows-x64.zip` and run `which-key-windows.exe`.
+- Portable zip: unzip `which-key-windows-v1.5.1-windows-x64.zip` and run `which-key-windows.exe`.
 - Source build: clone the repository and run `cargo run --bin which-key-windows`.
 
 ## Usage Options
@@ -57,7 +55,7 @@ User plugins live in:
 %APPDATA%\which-key-windows\plugins\
 ```
 
-Built-in plugins cover Codex, Claude Code, VS Code, Word, Excel, and PowerPoint. Windows global shortcuts are merged with the active app's shortcuts.
+Built-in plugins cover Codex Desktop, Codex CLI, Claude Code, VS Code, Word, Excel, and PowerPoint. Windows global shortcuts are merged with the active app's shortcuts.
 
 Open the control panel with `Win+Shift+C` or from the tray icon. From there you can open the config file, open the plugin directory, import/export plugin bundles, create a plugin template, edit user plugins, adjust the theme, and toggle autostart.
 
@@ -117,7 +115,7 @@ To disable a built-in plugin completely, create a user plugin file with the same
 The repository ships Windows release packages as GitHub Release assets. Download the latest installer or the portable zip.
 
 - Installer: run `which-key-windows-setup.exe` and follow the prompts.
-- Portable: unzip `which-key-windows-v1.5.0-windows-x64.zip` and run `which-key-windows.exe`.
+- Portable: unzip `which-key-windows-v1.5.1-windows-x64.zip` and run `which-key-windows.exe`.
 
 Package contents are intentionally small:
 
