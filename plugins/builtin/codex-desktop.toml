@@ -1,0 +1,234 @@
+schema_version = 1
+id = "codex-desktop"
+name = "Codex Desktop"
+processes = ["ChatGPT.exe"]
+
+description = "ChatGPT desktop shortcuts for Codex and ChatGPT-style app flows"
+
+[[bindings]]
+keys = ["Ctrl+Enter"]
+description = "发送当前消息"
+category = "常用"
+priority = "essential"
+
+[[bindings]]
+keys = ["Ctrl+N"]
+description = "新聊天"
+category = "常用"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Shift+N"]
+description = "新建临时聊天"
+category = "常用"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Alt+N"]
+description = "快速聊天"
+category = "常用"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Shift+A"]
+description = "归档聊天"
+category = "常用"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Alt+O"]
+description = "新建独立聊天"
+category = "常用"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Alt+S"]
+description = "打开侧边聊天"
+category = "常用"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Shift+U"]
+description = "标记为未读"
+category = "常用"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Alt+P"]
+description = "切换置顶状态"
+category = "常用"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+L"]
+description = "聚焦浏览器地址栏"
+category = "常用"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+B"]
+description = "切换边栏"
+category = "界面"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+J"]
+description = "切换底部面板"
+category = "界面"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Shift+B"]
+description = "显示/隐藏浏览器面板"
+category = "界面"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Tab"]
+description = "下一个最近查看的聊天"
+category = "导航"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Shift+Tab"]
+description = "上一个最近查看的聊天"
+category = "导航"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+PageDown"]
+description = "下一个聊天"
+category = "导航"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+PageUp"]
+description = "上一个聊天"
+category = "导航"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Alt+A"]
+description = "下一个需关注的聊天"
+category = "导航"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Alt+1"]
+description = "转到最近聊天 1"
+category = "导航"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Alt+2"]
+description = "转到最近聊天 2"
+category = "导航"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Alt+3"]
+description = "转到最近聊天 3"
+category = "导航"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Alt+4"]
+description = "转到最近聊天 4"
+category = "导航"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Alt+5"]
+description = "转到最近聊天 5"
+category = "导航"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Alt+6"]
+description = "转到最近聊天 6"
+category = "导航"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Alt+R"]
+description = "重命名聊天"
+category = "常用"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Alt+C"]
+description = "复制会话 ID"
+category = "常用"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Alt+L"]
+description = "复制深层链接"
+category = "常用"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Shift+C"]
+description = "复制对话路径"
+category = "常用"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Shift+M"]
+description = "打开模型选择器"
+category = "常用"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Alt+Shift+O"]
+description = "打开项目选择器"
+category = "常用"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+<"]
+description = "打开设置"
+category = "常用"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+O"]
+description = "打开文件夹"
+category = "文件"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+W"]
+description = "关闭"
+category = "常用"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Y", "Ctrl+Shift+Z"]
+description = "重做上一步操作"
+category = "编辑"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Z"]
+description = "撤销上一步操作"
+category = "编辑"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Esc"]
+description = "拒绝请求"
+category = "常用"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Enter"]
+description = "批准请求"
+category = "常用"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+/"]
+description = "显示键盘快捷方式"
+category = "帮助"
+priority = "recommended"
