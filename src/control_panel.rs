@@ -28,6 +28,8 @@ pub enum PanelCommand {
     PreviewTheme(ThemeConfig),
     /// 在记事本中打开全局配置文件。
     OpenConfig,
+    /// 在资源管理器中打开全局配置所在目录。
+    OpenConfigDir,
     /// 在资源管理器中打开用户插件目录。
     OpenPluginDir,
     /// 导出当前用户插件为单个 JSON 文件。
@@ -227,6 +229,7 @@ pub fn parse_panel_message(raw: &str) -> Option<PanelCommand> {
         Some("reload") => Some(PanelCommand::ReloadConfig),
         Some("ready") => Some(PanelCommand::RequestState),
         Some("openConfig") => Some(PanelCommand::OpenConfig),
+        Some("openConfigDir") => Some(PanelCommand::OpenConfigDir),
         Some("openPluginDir") => Some(PanelCommand::OpenPluginDir),
         Some("exportPlugins") => Some(PanelCommand::ExportPlugins),
         Some("importPlugins") => Some(PanelCommand::ImportPlugins),
@@ -500,6 +503,10 @@ disabled = true
         assert_eq!(
             parse_panel_message(r#"{"type":"openConfig"}"#),
             Some(PanelCommand::OpenConfig)
+        );
+        assert_eq!(
+            parse_panel_message(r#"{"type":"openConfigDir"}"#),
+            Some(PanelCommand::OpenConfigDir)
         );
         assert_eq!(
             parse_panel_message(r#"{"type":"exportPlugins"}"#),

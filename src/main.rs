@@ -215,6 +215,15 @@ fn main() -> Result<()> {
                         .spawn()
                         .context("打开全局配置失败")?;
                 }
+                Some(control_panel::PanelCommand::OpenConfigDir) => {
+                    let config_dir = config_path
+                        .parent()
+                        .context("配置路径缺少父目录")?;
+                    std::process::Command::new("explorer.exe")
+                        .arg(config_dir)
+                        .spawn()
+                        .context("打开配置目录失败")?;
+                }
                 Some(control_panel::PanelCommand::SetTheme(theme)) => {
                     match apply_theme_configuration(
                         &config_path,

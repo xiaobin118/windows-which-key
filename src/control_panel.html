@@ -534,6 +534,7 @@
                     <div class="card-desc">修改 which-key.toml 或插件后，可在此重新加载，无需重启程序。</div>
                     <div class="actions" style="margin-top:0">
                         <button class="btn btn-ghost" id="btn-open-config">打开配置</button>
+                        <button class="btn btn-ghost" id="btn-open-config-dir">打开配置目录</button>
                         <button class="btn btn-primary" id="btn-reload">重新加载配置</button>
                         <span class="status" id="reload-status"></span>
                     </div>
@@ -603,6 +604,9 @@
                 <div class="card">
                     <div class="card-title">用户插件</div>
                     <div class="card-desc">把 .toml 文件放进以下目录即可生效，优先级高于内置插件。</div>
+                    <div class="actions" style="margin-bottom:10px">
+                        <button class="btn btn-ghost" id="btn-open-config-bridge">跳到配置</button>
+                    </div>
                     <div id="user-plugins"></div>
                     <div class="path" id="plugin-dir"></div>
                     <div class="actions" style="margin-top:10px">
@@ -1155,6 +1159,14 @@
 
         document.getElementById('btn-open-config').addEventListener('click', () => {
             sendToHost({ type: 'openConfig' });
+        });
+
+        document.getElementById('btn-open-config-dir').addEventListener('click', () => {
+            sendToHost({ type: 'openConfigDir' });
+        });
+
+        document.getElementById('btn-open-config-bridge').addEventListener('click', () => {
+            sendToHost({ type: 'openConfigDir' });
         });
 
         document.getElementById('btn-save-theme').addEventListener('click', () => {
