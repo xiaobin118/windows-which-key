@@ -184,6 +184,7 @@ pub struct DisplayEntry {
 pub enum UiCommand {
     Show {
         position: (i32, i32),
+        app_name: String,
         entries: Vec<DisplayEntry>,
         breadcrumb: Vec<String>,
     },
@@ -192,6 +193,7 @@ pub enum UiCommand {
         entries: Vec<DisplayEntry>,
     },
     UpdateEntries {
+        app_name: String,
         entries: Vec<DisplayEntry>,
         breadcrumb: Vec<String>,
     },

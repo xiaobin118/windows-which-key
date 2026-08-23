@@ -104,6 +104,7 @@ impl StateMachine {
         }
 
         Some(UiCommand::UpdateEntries {
+            app_name: self.app_name.clone(),
             entries: self
                 .registry
                 .root_entries_for_modifiers(self.current_modifiers()),
@@ -147,6 +148,7 @@ impl StateMachine {
                         self.state = State::Showing { path: new_path };
 
                         Some(UiCommand::UpdateEntries {
+                            app_name: self.app_name.clone(),
                             entries,
                             breadcrumb,
                         })
@@ -214,6 +216,7 @@ impl StateMachine {
 
                     Some(UiCommand::Show {
                         position: (100, 100), // TODO: Calculate position based on cursor
+                        app_name: self.app_name.clone(),
                         entries,
                         breadcrumb,
                     })
@@ -525,6 +528,7 @@ mod tests {
             Some(UiCommand::UpdateEntries {
                 entries,
                 breadcrumb,
+                ..
             }) => {
                 assert!(breadcrumb.is_empty());
                 assert_eq!(entries.len(), 1);

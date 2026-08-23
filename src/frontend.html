@@ -140,6 +140,24 @@
             font-size: 11px;
         }
 
+        .context-app {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            margin: 0 4px 8px;
+            color: var(--text-primary);
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .context-app::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent-start), var(--accent-end));
+        }
+
         .app-name {
             display: flex;
             align-items: center;
@@ -327,6 +345,7 @@
             </div>
             <div class="status-chip"><span class="status-dot"></span><span id="status-text">就绪</span></div>
         </div>
+        <div class="context-app" id="context-app"></div>
         <div class="app-name" id="app-name"></div>
         <div class="breadcrumb" id="breadcrumb"></div>
         <div class="entries" id="entries"></div>
@@ -337,6 +356,7 @@
         const container = document.getElementById('container');
         const breadcrumbEl = document.getElementById('breadcrumb');
         const entriesEl = document.getElementById('entries');
+        const contextAppEl = document.getElementById('context-app');
         const appNameEl = document.getElementById('app-name');
         const statusTextEl = document.getElementById('status-text');
         const footerHintEl = document.getElementById('footer-hint');
@@ -503,16 +523,21 @@
         function handleMessage(data) {
             switch (data.type) {
                 case 'show':
+                    contextAppEl.textContent = data.appName || 'Windows';
+                    contextAppEl.style.display = 'flex';
                     appNameEl.style.display = 'none';
                     footerHintEl.textContent = '键入字符继续筛选 · Win+Shift+C 设置';
                     show();
                     renderEntries(data.entries || [], data.breadcrumb || []);
                     break;
                 case 'update':
+                    contextAppEl.textContent = data.appName || 'Windows';
+                    contextAppEl.style.display = 'flex';
                     appNameEl.style.display = 'none';
                     renderEntries(data.entries || [], data.breadcrumb || []);
                     break;
                 case 'showAll':
+                    contextAppEl.style.display = 'none';
                     appNameEl.textContent = data.appName || 'Windows';
                     appNameEl.style.display = 'flex';
                     breadcrumbEl.style.display = 'none';

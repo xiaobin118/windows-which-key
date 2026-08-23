@@ -112,6 +112,7 @@ impl OverlayController {
         match cmd {
             UiCommand::Show {
                 position,
+                app_name,
                 entries,
                 breadcrumb,
             } => {
@@ -126,12 +127,14 @@ impl OverlayController {
                     })?;
                     bridge.send_command(&UiCommand::Show {
                         position,
+                        app_name,
                         entries,
                         breadcrumb,
                     })?;
                 }
             }
             UiCommand::UpdateEntries {
+                app_name,
                 entries,
                 breadcrumb,
             } => {
@@ -140,6 +143,7 @@ impl OverlayController {
                 self.show_bottom(&entries, false)?;
                 if let Some(ref bridge) = self.webview_bridge {
                     bridge.send_command(&UiCommand::UpdateEntries {
+                        app_name,
                         entries,
                         breadcrumb,
                     })?;

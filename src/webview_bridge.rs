@@ -186,19 +186,23 @@ impl WebView2Bridge {
 fn command_json(cmd: &UiCommand) -> serde_json::Value {
     match cmd {
         UiCommand::Show {
+            position: _,
+            app_name,
             entries,
             breadcrumb,
-            ..
         } => json!({
             "type": "show",
+            "appName": app_name,
             "entries": entries,
             "breadcrumb": breadcrumb
         }),
         UiCommand::UpdateEntries {
+            app_name,
             entries,
             breadcrumb,
         } => json!({
             "type": "update",
+            "appName": app_name,
             "entries": entries,
             "breadcrumb": breadcrumb
         }),
@@ -224,6 +228,7 @@ mod tests {
     fn test_json_serialization() {
         let cmd = UiCommand::Show {
             position: (100, 100),
+            app_name: "Visual Studio Code".to_string(),
             entries: vec![DisplayEntry {
                 key: "C-c".to_string(),
                 desc: "Copy".to_string(),
@@ -238,6 +243,7 @@ mod tests {
 
         assert!(json_str.contains("show"));
         assert!(json_str.contains("Copy"));
+        assert!(json_str.contains("Visual Studio Code"));
     }
 
     #[test]
