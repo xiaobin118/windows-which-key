@@ -21,7 +21,9 @@ jobs:
 
       - name: Install NSIS
         shell: pwsh
-        run: choco install nsis -y
+        run: |
+          choco install nsis -y
+          "C:\Program Files (x86)\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Append
 
       - name: Build release binary
         run: cargo build --release --bin which-key-windows
@@ -38,7 +40,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           $version = "${{ github.ref_name }}".TrimStart('v')
-          makensis /DVERSION=$version installer\which-key-windows.nsi
+          & "C:\Program Files (x86)\NSIS\makensis.exe" /DVERSION=$version installer\which-key-windows.nsi
           $installer = Join-Path $PWD 'dist\which-key-windows-setup.exe'
           "INSTALLER_PATH=$installer" | Out-File -FilePath $env:GITHUB_ENV -Append
 
