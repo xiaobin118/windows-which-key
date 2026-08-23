@@ -66,10 +66,16 @@ The approved implementation plan is in `docs/superpowers/plans/2026-08-21-applic
 
 The Windows smoke matrix requires installed target applications and an interactive Windows desktop. Do not record it as passed until those manual cases have been run.
 
+## Repository Hygiene
+
+- `docs/automata_tutor.md` and `rust-tutor/` are local learning notes and are ignored by `.gitignore`; local `git add .` will not include them.
+- They have never entered git history, and the remote repository is clean.
+- The ignore-rule commit `1e2f762` has been pushed to `master`, so the remote repository keeps the same protection.
+- Remote `https://github.com/xiaobin118/windows-which-key` should contain only project code; learning notes stay local.
+
 ## Open TODO
 
-- Add a Windows installer package for GitHub releases, starting with NSIS as the primary path and MSI only if enterprise distribution later requires it.
-- Add a first-run or installer-time shortcut for creating the `%APPDATA%\which-key-windows\` config and plugin folders if needed by the installer flow.
+- MSI installer remains optional; NSIS is the primary installer path for GitHub releases.
 - Validate the release artifact on a clean Windows machine before calling the release process complete.
 
 ## Bug Log

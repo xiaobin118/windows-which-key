@@ -1,12 +1,29 @@
-# Windows Which-Key
+# Windows Which-Key v1.5.0
 
 Windows Which-Key is a Windows desktop shortcut helper. Hold a modifier key to see the shortcuts available in the active app. It does not execute or intercept normal shortcuts.
+
+中文说明见 [README.zh-CN.md](README.zh-CN.md).
+
+## What's New in v1.5
+
+- Floating overlay now shows the active app context, such as Codex, Claude Code, VS Code, Word, Excel, or PowerPoint.
+- Built-in plugins now include Codex and Claude Code in addition to VS Code and Microsoft Office apps.
+- Control panel includes theme editing, autostart toggle, plugin import/export, plugin template creation, and direct plugin file editing.
+- Tray menu provides quick access to reload config, open config, open config directory, open plugin directory, control panel, and quit.
 
 ## Quick Start
 
 - Windows 10 or later.
 - [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) installed.
 - Rust toolchain only if you run from source.
+
+## Install
+
+Use one of the release packages from [GitHub Releases](https://github.com/xiaobin118/windows-which-key/releases):
+
+- NSIS installer: run `which-key-windows-setup.exe`. It installs the app, creates Start Menu and desktop shortcuts, and registers an uninstaller.
+- Portable zip: unzip `which-key-windows-v1.5.0-windows-x64.zip` and run `which-key-windows.exe`.
+- Source build: clone the repository and run `cargo run --bin which-key-windows`.
 
 ## Usage Options
 
@@ -40,7 +57,9 @@ User plugins live in:
 %APPDATA%\which-key-windows\plugins\
 ```
 
-Built-in plugins cover VS Code, Word, Excel, and PowerPoint. Windows global shortcuts are merged with the active app's shortcuts.
+Built-in plugins cover Codex, Claude Code, VS Code, Word, Excel, and PowerPoint. Windows global shortcuts are merged with the active app's shortcuts.
+
+Open the control panel with `Win+Shift+C` or from the tray icon. From there you can open the config file, open the plugin directory, import/export plugin bundles, create a plugin template, edit user plugins, adjust the theme, and toggle autostart.
 
 ## Plugin Format
 
@@ -98,7 +117,7 @@ To disable a built-in plugin completely, create a user plugin file with the same
 The repository ships Windows release packages as GitHub Release assets. Download the latest installer or the portable zip.
 
 - Installer: run `which-key-windows-setup.exe` and follow the prompts.
-- Portable: unzip the package and run `which-key-windows.exe`.
+- Portable: unzip `which-key-windows-v1.5.0-windows-x64.zip` and run `which-key-windows.exe`.
 
 Package contents are intentionally small:
 

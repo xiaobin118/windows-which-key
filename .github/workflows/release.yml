@@ -29,14 +29,8 @@ jobs:
       - name: Package portable release
         shell: pwsh
         run: |
-          $packageRoot = Join-Path $env:RUNNER_TEMP 'which-key-windows-release'
-          New-Item -ItemType Directory -Force -Path $packageRoot | Out-Null
-          Copy-Item 'target\release\which-key-windows.exe' $packageRoot
-          Copy-Item 'README.md' $packageRoot
-          Copy-Item 'README.zh-CN.md' $packageRoot
-          $zipPath = Join-Path $env:RUNNER_TEMP ("which-key-windows-${{ github.ref_name }}-windows-x64.zip")
-          if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
-          Compress-Archive -Path (Join-Path $packageRoot '*') -DestinationPath $zipPath
+          .\scripts\package-release.ps1 -Version "${{ github.ref_name }}"
+          $zipPath = Join-Path $PWD "dist\which-key-windows-${{ github.ref_name }}-windows-x64.zip"
           "ZIP_PATH=$zipPath" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Build NSIS installer
