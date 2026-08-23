@@ -37,6 +37,8 @@ Configuration reloads must build a validated immutable snapshot before replaceme
 
 ## Initial Built-in Plugins
 
+- `codex` / `codex.exe`
+- `claude` / `claude.exe`
 - `vscode` / `Code.exe`
 - `word` / `WINWORD.EXE`
 - `excel` / `EXCEL.EXE`

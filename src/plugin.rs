@@ -9,6 +9,11 @@ use crate::shortcut::{format_shortcut, parse_shortcut};
 use crate::types::{BindingMetadata, BindingPriority, ShortcutKey};
 
 pub const BUILTIN_PLUGINS: &[(&str, &str)] = &[
+    ("codex.toml", include_str!("../plugins/builtin/codex.toml")),
+    (
+        "claude.toml",
+        include_str!("../plugins/builtin/claude.toml"),
+    ),
     (
         "vscode.toml",
         include_str!("../plugins/builtin/vscode.toml"),
@@ -473,7 +478,14 @@ priority = "essential"
     fn every_builtin_plugin_loads_and_expected_processes_exist() {
         let report = PluginSnapshot::load(BUILTIN_PLUGINS, Path::new("missing-user-dir")).unwrap();
         assert!(report.warnings.is_empty());
-        for process in ["code.exe", "winword.exe", "excel.exe", "powerpnt.exe"] {
+        for process in [
+            "codex.exe",
+            "claude.exe",
+            "code.exe",
+            "winword.exe",
+            "excel.exe",
+            "powerpnt.exe",
+        ] {
             assert!(
                 report.snapshot.for_process(process).is_some(),
                 "missing {process}"

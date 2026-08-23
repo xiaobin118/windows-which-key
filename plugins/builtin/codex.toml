@@ -1,0 +1,42 @@
+schema_version = 1
+id = "codex"
+name = "OpenAI Codex"
+processes = ["codex.exe"]
+
+description = "Codex CLI shortcuts"
+
+[[bindings]]
+keys = ["Ctrl+Enter"]
+description = "提交当前输入"
+category = "常用"
+priority = "essential"
+
+[[bindings]]
+keys = ["Ctrl+L"]
+description = "清屏"
+category = "常用"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+K"]
+description = "打开命令输入"
+category = "常用"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+R"]
+description = "搜索历史输入"
+category = "常用"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Shift+C"]
+description = "复制当前输出"
+category = "常用"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Shift+P"]
+description = "打开命令面板"
+category = "常用"
+priority = "recommended"

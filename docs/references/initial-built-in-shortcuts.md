@@ -2,6 +2,32 @@
 
 This file preserves the user-approved product input for the first built-in plugins. It is source material, not the plugin schema itself. `Ctrl + K, Ctrl + S` means two chords entered in order.
 
+## Codex
+
+| Shortcut | Description |
+| --- | --- |
+| `Ctrl + Enter` | 提交当前输入 |
+| `Ctrl + L` | 清屏 |
+| `Ctrl + K` | 打开命令输入 |
+| `Ctrl + R` | 搜索历史输入 |
+| `Ctrl + Shift + C` | 复制当前输出 |
+| `Ctrl + Shift + P` | 打开命令面板 |
+
+Essential: `Ctrl+Enter`.
+
+## Claude Code
+
+| Shortcut | Description |
+| --- | --- |
+| `Ctrl + Enter` | 提交当前输入 |
+| `Ctrl + L` | 清屏 |
+| `Ctrl + K` | 打开命令输入 |
+| `Ctrl + R` | 搜索历史输入 |
+| `Ctrl + Shift + P` | 打开命令面板 |
+| `Ctrl + O` | 打开文件 |
+
+Essential: `Ctrl+Enter`.
+
 ## VS Code
 
 | Shortcut | Description |
