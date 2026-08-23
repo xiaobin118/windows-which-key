@@ -39,6 +39,11 @@ description = "插入超链接"
 category = "编辑"
 priority = "recommended"
 [[bindings]]
+keys = ["Ctrl+S"]
+description = "保存演示文稿"
+category = "常用"
+priority = "recommended"
+[[bindings]]
 keys = ["Tab"]
 description = "选择下一个对象"
 category = "导航"
@@ -102,6 +107,16 @@ priority = "recommended"
 keys = ["PageDown"]
 description = "下一张幻灯片"
 category = "导航"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+Z"]
+description = "撤销"
+category = "常用"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+Y"]
+description = "重做"
+category = "常用"
 priority = "recommended"
 [[bindings]]
 keys = ["F5"]

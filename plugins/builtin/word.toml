@@ -69,10 +69,25 @@ description = "插入超链接"
 category = "编辑"
 priority = "recommended"
 [[bindings]]
+keys = ["Ctrl+M"]
+description = "增加段落缩进"
+category = "编辑"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+Shift+M"]
+description = "减少段落缩进"
+category = "编辑"
+priority = "recommended"
+[[bindings]]
 keys = ["Ctrl+Shift+8"]
 description = "显示／隐藏格式标记"
 category = "格式"
 priority = "essential"
+[[bindings]]
+keys = ["Ctrl+Shift+N"]
+description = "清除直接格式"
+category = "格式"
+priority = "recommended"
 [[bindings]]
 keys = ["Ctrl+Shift+>"]
 description = "增大字体"

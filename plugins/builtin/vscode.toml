@@ -9,6 +9,11 @@ description = "按文件名快速打开文件"
 category = "常用"
 priority = "essential"
 [[bindings]]
+keys = ["Ctrl+Shift+N"]
+description = "新建窗口"
+category = "常用"
+priority = "recommended"
+[[bindings]]
 keys = ["Ctrl+Shift+P", "F1"]
 description = "打开命令面板"
 category = "常用"
@@ -22,6 +27,26 @@ priority = "recommended"
 keys = ["Ctrl+B"]
 description = "显示／隐藏侧边栏"
 category = "常用"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+N"]
+description = "新建文件"
+category = "编辑"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+W"]
+description = "关闭当前编辑器"
+category = "常用"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+Tab"]
+description = "切换到下一个编辑器"
+category = "导航"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+Shift+Tab"]
+description = "切换到上一个编辑器"
+category = "导航"
 priority = "recommended"
 [[bindings]]
 keys = ["Ctrl+Shift+E"]
@@ -79,6 +104,17 @@ description = "显示代码补全"
 category = "编辑"
 priority = "recommended"
 [[bindings]]
+keys = ["Ctrl+Shift+O"]
+description = "跳转到文件中的符号"
+category = "导航"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+K", "Ctrl+W"]
+description = "关闭所有编辑器"
+category = "常用"
+priority = "recommended"
+sequence = true
+[[bindings]]
 keys = ["F2"]
 description = "重命名变量、函数或类型"
 category = "编辑"
@@ -103,6 +139,18 @@ keys = ["Ctrl+Shift+K"]
 description = "删除整行"
 category = "编辑"
 priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+K", "Ctrl+U"]
+description = "转换为大写"
+category = "编辑"
+priority = "recommended"
+sequence = true
+[[bindings]]
+keys = ["Ctrl+K", "Ctrl+L"]
+description = "转换为小写"
+category = "编辑"
+priority = "recommended"
+sequence = true
 [[bindings]]
 keys = ["Ctrl+K", "Ctrl+F"]
 description = "格式化选中代码"

@@ -585,7 +585,7 @@
                 </div>
                 <div class="card">
                     <div class="card-title">配置</div>
-                    <div class="card-desc">修改 which-key.toml 或插件后，可在此重新加载，无需重启程序。</div>
+                    <div class="card-desc">修改 which-key.toml 或主题后，可在此重新加载，无需重启程序。</div>
                     <div class="switch-row">
                         <div class="switch-label">
                             <div class="title">开机自启</div>
@@ -666,12 +666,11 @@
                     <div class="card-title">用户插件</div>
                     <div class="card-desc">把 .toml 文件放进以下目录即可生效，优先级高于内置插件。</div>
                     <div class="actions" style="margin-bottom:10px">
-                        <button class="btn btn-ghost" id="btn-open-config-bridge">跳到配置</button>
+                        <button class="btn btn-primary" id="btn-open-plugin-dir">打开插件目录</button>
                     </div>
                     <div id="user-plugins"></div>
                     <div class="path" id="plugin-dir"></div>
                     <div class="actions" style="margin-top:10px">
-                        <button class="btn btn-ghost" id="btn-open-plugin-dir">打开目录</button>
                         <button class="btn btn-ghost" id="btn-export-plugins">导出插件包</button>
                         <button class="btn btn-primary" id="btn-import-plugins">导入插件包</button>
                     </div>
@@ -1235,10 +1234,6 @@
 
         document.getElementById('autostart-switch').addEventListener('change', (event) => {
             sendToHost({ type: 'toggleAutostart', enabled: event.target.checked });
-        });
-
-        document.getElementById('btn-open-config-bridge').addEventListener('click', () => {
-            sendToHost({ type: 'openConfigDir' });
         });
 
         document.getElementById('btn-save-theme').addEventListener('click', () => {

@@ -14,6 +14,11 @@ description = "打开“设置单元格格式”"
 category = "格式"
 priority = "essential"
 [[bindings]]
+keys = ["Ctrl+S"]
+description = "保存工作簿"
+category = "常用"
+priority = "recommended"
+[[bindings]]
 keys = ["Ctrl+T"]
 description = "将区域转换为表格"
 category = "工作表"
@@ -84,6 +89,11 @@ description = "选择整行"
 category = "工作表"
 priority = "recommended"
 [[bindings]]
+keys = ["Ctrl+A"]
+description = "选择当前数据区域"
+category = "工作表"
+priority = "recommended"
+[[bindings]]
 keys = ["Ctrl+D"]
 description = "向下填充"
 category = "编辑"
@@ -91,6 +101,11 @@ priority = "recommended"
 [[bindings]]
 keys = ["Ctrl+R"]
 description = "向右填充"
+category = "编辑"
+priority = "recommended"
+[[bindings]]
+keys = ["Ctrl+Y"]
+description = "重做"
 category = "编辑"
 priority = "recommended"
 [[bindings]]
