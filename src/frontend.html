@@ -6,8 +6,8 @@
     <title>Which-Key</title>
     <style>
         :root {
-            --bg-gradient-start: #12182D;
-            --bg-gradient-end: #0A0E1C;
+            --bg-gradient-start: rgba(18, 24, 45, 0.92);
+            --bg-gradient-end: rgba(10, 14, 28, 0.92);
             --glow-purple: rgba(111, 92, 255, 0.18);
             --glow-blue: rgba(97, 140, 255, 0.10);
             --border-soft: rgba(145, 164, 255, 0.2);
@@ -33,9 +33,12 @@
             box-sizing: border-box;
         }
 
+        html, body {
+            background: transparent;
+        }
+
         body {
             font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
-            background: var(--bg-gradient-end);
             color: #fff;
             overflow: hidden;
             user-select: none;
@@ -129,6 +132,12 @@
             border-radius: 50%;
             background: linear-gradient(135deg, var(--accent-start), var(--accent-end));
             box-shadow: 0 0 6px rgba(120, 120, 255, 0.8);
+        }
+
+        .status-detail {
+            margin-top: 2px;
+            color: var(--text-muted);
+            font-size: 11px;
         }
 
         .app-name {
@@ -332,8 +341,20 @@
         const statusTextEl = document.getElementById('status-text');
         const footerHintEl = document.getElementById('footer-hint');
 
-        function setStatusCount(count) {
+        function setStatusCount(count, detail = '') {
             statusTextEl.textContent = count + ' 项可用';
+            let detailNode = document.getElementById('status-detail');
+            if (detail) {
+                if (!detailNode) {
+                    detailNode = document.createElement('div');
+                    detailNode.id = 'status-detail';
+                    detailNode.className = 'status-detail';
+                    statusTextEl.parentElement.appendChild(detailNode);
+                }
+                detailNode.textContent = detail;
+            } else if (detailNode) {
+                detailNode.remove();
+            }
         }
 
         function buildEntry(entry) {
@@ -391,7 +412,7 @@
                 entriesEl.appendChild(buildEntry(entry));
             });
 
-            setStatusCount(entries.length);
+            setStatusCount(entries.length, breadcrumb.length ? breadcrumb.join(' › ') : '');
         }
 
         function renderGroupedEntries(entries) {
@@ -422,7 +443,7 @@
                 });
             });
 
-            setStatusCount(entries.length);
+            setStatusCount(entries.length, '按类别分组展示');
         }
 
         function show() {
@@ -460,16 +481,17 @@
             return `rgba(${r}, ${g}, ${b}, ${alpha})`;
         }
 
-        function darken(hex, factor) {
+        function darken(hex, factor, alpha = 1) {
             const [r, g, b] = hexToRgb(hex);
             const mix = (c) => Math.round(c * factor);
-            return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`;
+            return `rgba(${mix(r)}, ${mix(g)}, ${mix(b)}, ${alpha})`;
         }
 
         function applyTheme(theme) {
             const root = document.documentElement.style;
-            root.setProperty('--bg-gradient-start', theme.background);
-            root.setProperty('--bg-gradient-end', darken(theme.background, 0.55));
+            const backgroundOpacity = theme.background_opacity ?? 0.92;
+            root.setProperty('--bg-gradient-start', hexToRgba(theme.background, backgroundOpacity));
+            root.setProperty('--bg-gradient-end', darken(theme.background, 0.55, backgroundOpacity));
             root.setProperty('--border-soft', hexToRgba(theme.border, theme.border_opacity));
             root.setProperty('--accent-start', theme.accent);
             root.setProperty('--accent-end', theme.accent);

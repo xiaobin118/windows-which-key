@@ -30,6 +30,10 @@ pub enum PanelCommand {
     OpenConfig,
     /// 在资源管理器中打开用户插件目录。
     OpenPluginDir,
+    /// 导出当前用户插件为单个 JSON 文件。
+    ExportPlugins,
+    /// 从单个 JSON 文件导入插件包。
+    ImportPlugins,
     /// 页面加载完成，请求推送完整状态（解决 NavigateToString 异步竞态）。
     RequestState,
 }
@@ -224,6 +228,8 @@ pub fn parse_panel_message(raw: &str) -> Option<PanelCommand> {
         Some("ready") => Some(PanelCommand::RequestState),
         Some("openConfig") => Some(PanelCommand::OpenConfig),
         Some("openPluginDir") => Some(PanelCommand::OpenPluginDir),
+        Some("exportPlugins") => Some(PanelCommand::ExportPlugins),
+        Some("importPlugins") => Some(PanelCommand::ImportPlugins),
         Some(kind @ ("setTheme" | "previewTheme")) => {
             match serde_json::from_value::<ThemeConfig>(
                 value
@@ -494,6 +500,14 @@ disabled = true
         assert_eq!(
             parse_panel_message(r#"{"type":"openConfig"}"#),
             Some(PanelCommand::OpenConfig)
+        );
+        assert_eq!(
+            parse_panel_message(r#"{"type":"exportPlugins"}"#),
+            Some(PanelCommand::ExportPlugins)
+        );
+        assert_eq!(
+            parse_panel_message(r#"{"type":"importPlugins"}"#),
+            Some(PanelCommand::ImportPlugins)
         );
     }
 

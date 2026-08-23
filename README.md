@@ -1,34 +1,50 @@
 # Windows Which-Key
 
-Windows Which-Key 是 Windows 桌面快捷键提示工具：按住修饰键即可查看当前应用可用的快捷键。它不会执行或拦截普通快捷键。
+Windows Which-Key is a Windows desktop shortcut helper. Hold a modifier key to see the shortcuts available in the active app. It does not execute or intercept normal shortcuts.
 
-## 运行条件与启动
+## Quick Start
 
-- Windows 10 或更高版本。
-- 已安装 [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)；程序界面依赖它启动。
-- Rust 工具链（仅从源码运行时需要）。
+- Windows 10 or later.
+- [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) installed.
+- Rust toolchain only if you run from source.
 
-在项目根目录运行：
+## Usage Options
+
+Pick the path that fits how you want to use the app:
+
+- Installer: best for regular use. It installs to `Program Files`, creates Start Menu and desktop shortcuts, and gives you a normal uninstall entry.
+- Portable zip: best for trying the app or keeping it on a USB drive. Unzip and run the executable directly.
+- Run from source: best for development or local debugging. Use `cargo run --bin which-key-windows`.
+
+For daily use, the app is designed around three main actions:
+
+- Hold a modifier key to show shortcuts for the active app.
+- Press `Win+Shift+/` to open the full shortcut panel.
+- Use the tray icon to reload config, open the control panel, or quit.
+
+Run from the project root:
 
 ```powershell
 cargo run --bin which-key-windows
 ```
 
-按住配置的修饰键会显示与前台应用匹配的快捷键；松开后隐藏。`Win+Shift+/` 可打开“显示全部”面板，以便查看 `F2`、`F12` 等不含修饰键的快捷键；该面板打开时按 `Esc` 关闭。
+Hold the configured modifier key to show shortcuts for the foreground app, then release to hide them. `Win+Shift+/` opens the “show all” panel so you can inspect shortcuts such as `F2` and `F12`. Press `Esc` to close that panel.
 
-## 配置与插件位置
+## Configuration
 
-全局配置位于 `%APPDATA%\which-key-windows\which-key.toml`，用户插件直接放在：
+Global configuration lives at `%APPDATA%\which-key-windows\which-key.toml`.
+
+User plugins live in:
 
 ```text
 %APPDATA%\which-key-windows\plugins\
 ```
 
-内置插件覆盖 VS Code、Word、Excel 与 PowerPoint。Windows 全局快捷键会与当前应用的插件快捷键合并显示。
+Built-in plugins cover VS Code, Word, Excel, and PowerPoint. Windows global shortcuts are merged with the active app's shortcuts.
 
-## 插件格式（schema version 1）
+## Plugin Format
 
-每个插件是一个直接放在 `plugins` 目录中的 `*.toml` 文件，不扫描子目录。插件是纯数据：不能执行代码、命令或脚本。
+Each plugin is a `*.toml` file placed directly in the `plugins` directory. Plugins are data-only: they cannot execute code, commands, or scripts.
 
 ```toml
 schema_version = 1
@@ -38,31 +54,29 @@ processes = ["myeditor.exe"]
 
 [[bindings]]
 keys = ["Ctrl+P"]
-description = "打开文件"
-category = "常用"
+description = "Open file"
+category = "Common"
 priority = "essential"
 
-# 多个等价快捷键：按其中任一个都适用。
 [[bindings]]
 keys = ["Ctrl+Shift+P", "F1"]
-description = "打开命令面板"
-category = "常用"
+description = "Open command palette"
+category = "Common"
 priority = "recommended"
 
-# 多键序列：按顺序输入 Ctrl+K，再输入 Ctrl+F。
 [[bindings]]
 keys = ["Ctrl+K", "Ctrl+F"]
-description = "格式化选择内容"
-category = "格式"
+description = "Format selection"
+category = "Formatting"
 priority = "recommended"
 sequence = true
 ```
 
-`schema_version` 必须为 `1`。`id`、`name`、`processes` 及每个绑定的 `keys`、`description`、`category`、`priority` 都是必填项。`priority` 只能是 `essential`、`recommended` 或 `advanced`。可用按键写法包括 `Ctrl+P`、`Alt+Up`、`Shift+F5`、`PageDown`、`Ctrl+Shift++`。
+`schema_version` must be `1`. `id`, `name`, `processes`, and each binding's `keys`, `description`, `category`, and `priority` are required. Valid priorities are `essential`, `recommended`, and `advanced`.
 
-## 覆盖或禁用内置插件
+## Override or Disable Built-ins
 
-用户插件的 `id` 与内置插件相同时，会覆盖同名按键，并保留未提及的内置绑定。例如自定义 VS Code 的快速打开提示：
+If a user plugin has the same `id` as a built-in plugin, it overrides the matching bindings and keeps the rest.
 
 ```toml
 schema_version = 1
@@ -72,23 +86,32 @@ processes = ["Code.exe"]
 
 [[bindings]]
 keys = ["Ctrl+P"]
-description = "项目文件快速打开"
-category = "常用"
+description = "Quick open project files"
+category = "Common"
 priority = "essential"
 ```
 
-要完全关闭一个内置插件，在用户插件目录创建同 `id` 的文件：
+To disable a built-in plugin completely, create a user plugin file with the same `id` and set `disabled = true`.
 
-```toml
-schema_version = 1
-id = "vscode"
-name = "Visual Studio Code"
-processes = ["Code.exe"]
-disabled = true
-```
+## Release Downloads
 
-## 排查问题
+The repository ships Windows release packages as GitHub Release assets. Download the latest installer or the portable zip.
 
-- 用户插件无效时，应用会忽略该文件并显示警告，其他插件仍会加载。检查 schema 版本、必填字段、按键写法和重复绑定。
-- 内置插件或全局配置无效会阻止配置加载；恢复随程序发布的内置文件，或修正 `%APPDATA%\which-key-windows\which-key.toml`。
-- 若启动时提示 WebView2 相关错误或窗口没有显示，安装/修复 WebView2 Runtime 后重试；确认 Windows 版本受支持。
+- Installer: run `which-key-windows-setup.exe` and follow the prompts.
+- Portable: unzip the package and run `which-key-windows.exe`.
+
+Package contents are intentionally small:
+
+- `which-key-windows.exe`
+- `README.md`
+- `README.zh-CN.md`
+
+The installer also creates Start Menu and desktop shortcuts.
+
+The app creates its config and plugin folders under `%APPDATA%\which-key-windows\` on first launch.
+
+## Troubleshooting
+
+- Invalid user plugins are skipped with a warning; other plugins still load.
+- Invalid built-in plugins or global config block startup.
+- If WebView2 errors appear or the window does not show, repair WebView2 Runtime and try again.

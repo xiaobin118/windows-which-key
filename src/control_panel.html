@@ -607,6 +607,8 @@
                     <div class="path" id="plugin-dir"></div>
                     <div class="actions" style="margin-top:10px">
                         <button class="btn btn-ghost" id="btn-open-plugin-dir">打开目录</button>
+                        <button class="btn btn-ghost" id="btn-export-plugins">导出插件包</button>
+                        <button class="btn btn-primary" id="btn-import-plugins">导入插件包</button>
                     </div>
                 </div>
             </div>
@@ -1174,6 +1176,14 @@
 
         document.getElementById('btn-open-plugin-dir').addEventListener('click', () => {
             sendToHost({ type: 'openPluginDir' });
+        });
+
+        document.getElementById('btn-export-plugins').addEventListener('click', () => {
+            sendToHost({ type: 'exportPlugins' });
+        });
+
+        document.getElementById('btn-import-plugins').addEventListener('click', () => {
+            sendToHost({ type: 'importPlugins' });
         });
 
         document.getElementById('plugin-search').addEventListener('input', (event) => {

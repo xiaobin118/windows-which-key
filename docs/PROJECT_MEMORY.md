@@ -64,6 +64,12 @@ The approved implementation plan is in `docs/superpowers/plans/2026-08-21-applic
 
 The Windows smoke matrix requires installed target applications and an interactive Windows desktop. Do not record it as passed until those manual cases have been run.
 
+## Open TODO
+
+- Add a Windows installer package for GitHub releases, starting with NSIS as the primary path and MSI only if enterprise distribution later requires it.
+- Add a first-run or installer-time shortcut for creating the `%APPDATA%\which-key-windows\` config and plugin folders if needed by the installer flow.
+- Validate the release artifact on a clean Windows machine before calling the release process complete.
+
 ## Bug Log
 
 - 2026-08-22 — Overlay footer not pinned to the bottom when the entry list is shorter than the window (for example after pressing Ctrl then Shift, which filters down to the `C-S-` list). The footer sat right after the last entry instead of at the container bottom. `position: sticky` did not help because a short list never scrolls. Fixed by making `.container.visible` a vertical flex column and giving `.footer` `margin-top: auto`.

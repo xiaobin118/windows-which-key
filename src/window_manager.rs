@@ -2,8 +2,7 @@ use anyhow::{Context, Result};
 use windows::core::w;
 use windows::Win32::Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::Graphics::Dwm::{
-    DwmSetWindowAttribute, DWMSBT_TRANSIENTWINDOW, DWMWA_SYSTEMBACKDROP_TYPE,
-    DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
+    DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
 };
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::HiDpi::{GetDpiForSystem, GetDpiForWindow};
@@ -48,6 +47,9 @@ unsafe extern "system" fn overlay_window_proc(
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> LRESULT {
+    if msg == WM_NCHITTEST {
+        return LRESULT(HTTRANSPARENT as isize);
+    }
     DefWindowProcW(hwnd, msg, wparam, lparam)
 }
 
@@ -77,7 +79,7 @@ impl WindowManager {
             }
 
             let hwnd = CreateWindowExW(
-                WS_EX_NOACTIVATE | WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
+                WS_EX_NOACTIVATE | WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT,
                 class_name,
                 w!("Which-Key"),
                 WS_POPUP,
@@ -97,29 +99,18 @@ impl WindowManager {
 
             self.hwnd = Some(hwnd);
 
-            // Apply glassmorphism
-            self.apply_glassmorphism()?;
+            self.apply_window_shape()?;
 
             Ok(hwnd)
         }
     }
 
-    /// 应用毛玻璃效果。失败只记日志，不阻塞窗口创建。
-    fn apply_glassmorphism(&self) -> Result<()> {
+    /// 应用窗口形状属性。背景透明度由 WebView/HTML 自己绘制，
+    /// 这里不启用 DWM system backdrop，避免把透明区域重新填实。
+    fn apply_window_shape(&self) -> Result<()> {
         let hwnd = self.hwnd.context("Window not created")?;
 
         unsafe {
-            // Try modern acrylic (Windows 11 22H2+)
-            let backdrop_type = DWMSBT_TRANSIENTWINDOW;
-            if let Err(e) = DwmSetWindowAttribute(
-                hwnd,
-                DWMWA_SYSTEMBACKDROP_TYPE,
-                &backdrop_type as *const _ as *const _,
-                std::mem::size_of::<i32>() as u32,
-            ) {
-                log::warn!("毛玻璃效果不可用（Windows 11 22H2+ 才支持）: {:?}", e);
-            }
-
             // Enable rounded corners
             let corner_pref = DWMWCP_ROUND;
             if let Err(e) = DwmSetWindowAttribute(

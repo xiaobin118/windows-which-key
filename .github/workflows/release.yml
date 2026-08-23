@@ -1,0 +1,56 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install NSIS
+        shell: pwsh
+        run: choco install nsis -y
+
+      - name: Build release binary
+        run: cargo build --release --bin which-key-windows
+
+      - name: Package portable release
+        shell: pwsh
+        run: |
+          $packageRoot = Join-Path $env:RUNNER_TEMP 'which-key-windows-release'
+          New-Item -ItemType Directory -Force -Path $packageRoot | Out-Null
+          Copy-Item 'target\release\which-key-windows.exe' $packageRoot
+          Copy-Item 'README.md' $packageRoot
+          Copy-Item 'README.zh-CN.md' $packageRoot
+          $zipPath = Join-Path $env:RUNNER_TEMP ("which-key-windows-${{ github.ref_name }}-windows-x64.zip")
+          if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
+          Compress-Archive -Path (Join-Path $packageRoot '*') -DestinationPath $zipPath
+          "ZIP_PATH=$zipPath" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Build NSIS installer
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          makensis /DVERSION=$version installer\which-key-windows.nsi
+          $installer = Join-Path $PWD 'dist\which-key-windows-setup.exe'
+          "INSTALLER_PATH=$installer" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ env.ZIP_PATH }}
+            ${{ env.INSTALLER_PATH }}

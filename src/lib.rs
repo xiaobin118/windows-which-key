@@ -5,6 +5,7 @@ pub mod hook;
 pub mod keymap_resolver;
 pub mod overlay_controller;
 pub mod plugin;
+pub mod plugin_bundle;
 pub mod registry;
 pub mod runtime_snapshot;
 pub mod shortcut;

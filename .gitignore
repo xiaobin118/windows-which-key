@@ -13,3 +13,4 @@
 
 # Local config
 local.toml
+.claude/settings.local.json

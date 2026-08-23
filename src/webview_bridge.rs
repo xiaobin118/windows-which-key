@@ -4,12 +4,13 @@ use serde_json::json;
 use std::sync::mpsc::Sender;
 use webview2_com::Microsoft::Web::WebView2::Win32::{
     CreateCoreWebView2EnvironmentWithOptions, ICoreWebView2, ICoreWebView2Controller,
+    ICoreWebView2Controller2, COREWEBVIEW2_COLOR,
 };
 use webview2_com::{
     CoTaskMemPWSTR, CreateCoreWebView2ControllerCompletedHandler,
     CreateCoreWebView2EnvironmentCompletedHandler, WebMessageReceivedEventHandler,
 };
-use windows::core::PWSTR;
+use windows::core::{Interface, PWSTR};
 use windows::Win32::Foundation::{E_POINTER, HWND, RECT};
 use windows::Win32::System::Com::{CoInitializeEx, COINIT_APARTMENTTHREADED};
 use windows::Win32::System::WinRT::EventRegistrationToken;
@@ -90,6 +91,16 @@ impl WebView2Bridge {
             let webview = controller
                 .CoreWebView2()
                 .context("获取 CoreWebView2 失败")?;
+            if let Ok(controller2) = controller.cast::<ICoreWebView2Controller2>() {
+                controller2
+                    .SetDefaultBackgroundColor(COREWEBVIEW2_COLOR {
+                        A: 0,
+                        R: 0,
+                        G: 0,
+                        B: 0,
+                    })
+                    .context("设置 WebView2 透明背景失败")?;
+            }
 
             // ── 配置 WebView ──
             let settings = webview.Settings().context("获取 WebView2 settings 失败")?;

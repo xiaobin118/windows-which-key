@@ -6,6 +6,7 @@ use which_key_windows::foreground_app::ForegroundAppProvider;
 use which_key_windows::*;
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows::Win32::UI::Controls::Dialogs::{GetOpenFileNameW, GetSaveFileNameW, OPENFILENAMEW, OFN_EXPLORER, OFN_HIDEREADONLY, OFN_PATHMUSTEXIST};
 use windows::Win32::UI::WindowsAndMessaging::*;
 
 const WM_TRAY_CALLBACK: u32 = WM_USER + 1;
@@ -171,6 +172,42 @@ fn main() -> Result<()> {
                         .arg(&plugin_dir)
                         .spawn()
                         .context("打开插件目录失败")?;
+                }
+                Some(control_panel::PanelCommand::ExportPlugins) => {
+                    let plugin_dir = config_path
+                        .parent()
+                        .context("配置路径缺少父目录")?
+                        .join("plugins");
+                    let bundle = plugin_bundle::export_user_plugin_bundle(&plugin_dir)?;
+                    if let Some(path) = pick_bundle_save_path()? {
+                        std::fs::write(&path, bundle)
+                            .with_context(|| format!("写出插件包失败: {}", path.display()))?;
+                        log::info!("已导出插件包: {}", path.display());
+                    }
+                }
+                Some(control_panel::PanelCommand::ImportPlugins) => {
+                    if let Some(path) = pick_bundle_open_path()? {
+                        let plugin_dir = config_path
+                            .parent()
+                            .context("配置路径缺少父目录")?
+                            .join("plugins");
+                        let bundle = std::fs::read_to_string(&path)
+                            .with_context(|| format!("读取插件包失败: {}", path.display()))?;
+                        let count = plugin_bundle::import_user_plugin_bundle(&bundle, &plugin_dir)?;
+                        log::info!("已导入插件包，写入 {} 个文件", count);
+                        reload_configuration(
+                            &configuration,
+                            &config_path,
+                            &plugin_dir,
+                            &mut state_machine,
+                            &mut overlay,
+                            &hook,
+                        )?;
+                        if let Some(panel) = control_panel.as_ref() {
+                            let _ = panel.notify_reload_done();
+                            let _ = panel.send_state(&configuration.current().theme);
+                        }
+                    }
                 }
                 Some(control_panel::PanelCommand::OpenConfig) => {
                     std::process::Command::new("notepad.exe")
@@ -473,6 +510,45 @@ fn create_message_window() -> Result<HWND> {
         .context("创建托盘消息窗口失败")?;
 
         Ok(hwnd)
+    }
+}
+
+fn pick_bundle_save_path() -> Result<Option<std::path::PathBuf>> {
+    pick_file_path(false)
+}
+
+fn pick_bundle_open_path() -> Result<Option<std::path::PathBuf>> {
+    pick_file_path(true)
+}
+
+fn pick_file_path(open: bool) -> Result<Option<std::path::PathBuf>> {
+    use windows::core::PWSTR;
+
+    unsafe {
+        let mut file_buffer = [0u16; 260];
+        let mut ofn = OPENFILENAMEW {
+            lStructSize: std::mem::size_of::<OPENFILENAMEW>() as u32,
+            lpstrFile: PWSTR(file_buffer.as_mut_ptr()),
+            nMaxFile: file_buffer.len() as u32,
+            lpstrFilter: windows::core::w!("Plugin Bundle\0*.json\0All Files\0*.*\0\0"),
+            nFilterIndex: 1,
+            Flags: OFN_EXPLORER | OFN_PATHMUSTEXIST | OFN_HIDEREADONLY,
+            ..Default::default()
+        };
+
+        let ok = if open {
+            GetOpenFileNameW(&mut ofn).as_bool()
+        } else {
+            GetSaveFileNameW(&mut ofn).as_bool()
+        };
+
+        if !ok {
+            return Ok(None);
+        }
+
+        let len = file_buffer.iter().position(|&ch| ch == 0).unwrap_or(file_buffer.len());
+        let path = String::from_utf16_lossy(&file_buffer[..len]);
+        Ok(Some(std::path::PathBuf::from(path)))
     }
 }
 
