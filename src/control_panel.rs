@@ -26,6 +26,8 @@ pub enum PanelCommand {
     SetTheme(ThemeConfig),
     /// 编辑过程中实时预览主题（只改浮层，不写文件）。
     PreviewTheme(ThemeConfig),
+    /// 切换开机自启开关。
+    ToggleAutostart(bool),
     /// 在记事本中打开全局配置文件。
     OpenConfig,
     /// 在资源管理器中打开全局配置所在目录。
@@ -228,6 +230,10 @@ pub fn parse_panel_message(raw: &str) -> Option<PanelCommand> {
     match value.get("type").and_then(|t| t.as_str()) {
         Some("reload") => Some(PanelCommand::ReloadConfig),
         Some("ready") => Some(PanelCommand::RequestState),
+        Some("toggleAutostart") => value
+            .get("enabled")
+            .and_then(|enabled| enabled.as_bool())
+            .map(PanelCommand::ToggleAutostart),
         Some("openConfig") => Some(PanelCommand::OpenConfig),
         Some("openConfigDir") => Some(PanelCommand::OpenConfigDir),
         Some("openPluginDir") => Some(PanelCommand::OpenPluginDir),
@@ -323,6 +329,7 @@ pub fn build_state_json(
         "version": version,
         "configPath": config_path.to_string_lossy(),
         "pluginDir": plugin_dir.to_string_lossy(),
+        "autostartEnabled": crate::autostart::is_enabled().unwrap_or(false),
         "theme": theme,
         "plugins": {
             "builtIn": built_in,
@@ -507,6 +514,10 @@ disabled = true
         assert_eq!(
             parse_panel_message(r#"{"type":"openConfigDir"}"#),
             Some(PanelCommand::OpenConfigDir)
+        );
+        assert_eq!(
+            parse_panel_message(r#"{"type":"toggleAutostart","enabled":true}"#),
+            Some(PanelCommand::ToggleAutostart(true))
         );
         assert_eq!(
             parse_panel_message(r#"{"type":"exportPlugins"}"#),

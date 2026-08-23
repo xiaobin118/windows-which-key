@@ -4,6 +4,7 @@ pub mod foreground_app;
 pub mod hook;
 pub mod keymap_resolver;
 pub mod overlay_controller;
+pub mod autostart;
 pub mod plugin;
 pub mod plugin_bundle;
 pub mod registry;

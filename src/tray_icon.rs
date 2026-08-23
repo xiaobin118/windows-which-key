@@ -8,6 +8,8 @@ pub enum TrayCommand {
     Quit,
     ReloadConfig,
     OpenConfig,
+    OpenConfigDir,
+    OpenPluginDir,
     OpenControlPanel,
 }
 
@@ -94,6 +96,8 @@ impl TrayIcon {
             AppendMenuW(menu, MF_SEPARATOR, 0, None).ok()?;
             AppendMenuW(menu, MF_STRING, 1, windows::core::w!("重新加载配置")).ok()?;
             AppendMenuW(menu, MF_STRING, 2, windows::core::w!("打开配置文件")).ok()?;
+            AppendMenuW(menu, MF_STRING, 5, windows::core::w!("打开配置目录")).ok()?;
+            AppendMenuW(menu, MF_STRING, 6, windows::core::w!("打开插件目录")).ok()?;
             AppendMenuW(menu, MF_SEPARATOR, 0, None).ok()?;
             AppendMenuW(menu, MF_STRING, 3, windows::core::w!("退出")).ok()?;
 
@@ -117,6 +121,8 @@ impl TrayIcon {
                 2 => Some(TrayCommand::OpenConfig),
                 3 => Some(TrayCommand::Quit),
                 4 => Some(TrayCommand::OpenControlPanel),
+                5 => Some(TrayCommand::OpenConfigDir),
+                6 => Some(TrayCommand::OpenPluginDir),
                 _ => None,
             }
         }

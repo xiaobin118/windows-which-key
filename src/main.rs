@@ -162,6 +162,12 @@ fn main() -> Result<()> {
                     // 实时预览：只应用到浮层，不写配置文件
                     overlay.execute(types::UiCommand::ApplyTheme { theme })?;
                 }
+                Some(control_panel::PanelCommand::ToggleAutostart(enabled)) => {
+                    autostart::set_enabled(enabled, &std::env::current_exe().context("获取当前可执行文件失败")?)?;
+                    if let Some(panel) = control_panel.as_ref() {
+                        let _ = panel.send_state(&configuration.current().theme);
+                    }
+                }
                 Some(control_panel::PanelCommand::OpenPluginDir) => {
                     let plugin_dir = config_path
                         .parent()
@@ -341,6 +347,26 @@ fn pump_messages(
                                 .arg(config_path)
                                 .spawn()
                                 .context("打开全局配置失败")?;
+                        }
+                        tray_icon::TrayCommand::OpenConfigDir => {
+                            let config_dir = config_path
+                                .parent()
+                                .context("配置路径缺少父目录")?;
+                            std::process::Command::new("explorer.exe")
+                                .arg(config_dir)
+                                .spawn()
+                                .context("打开配置目录失败")?;
+                        }
+                        tray_icon::TrayCommand::OpenPluginDir => {
+                            let plugin_dir = config_path
+                                .parent()
+                                .context("配置路径缺少父目录")?
+                                .join("plugins");
+                            std::fs::create_dir_all(&plugin_dir).ok();
+                            std::process::Command::new("explorer.exe")
+                                .arg(&plugin_dir)
+                                .spawn()
+                                .context("打开插件目录失败")?;
                         }
                         tray_icon::TrayCommand::OpenControlPanel => {
                             open_control_panel(panel_tx, control_panel);

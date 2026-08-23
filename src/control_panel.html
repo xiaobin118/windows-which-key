@@ -453,6 +453,60 @@
         .status { color: var(--text-faint); font-size: 11px; transition: color 0.2s; }
         .status.ok { color: #6FD3A0; }
 
+        .switch-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            min-height: 34px;
+            padding: 6px 0;
+            border-bottom: 1px solid var(--divider);
+        }
+
+        .switch-row:last-child { border-bottom: none; }
+
+        .switch-label {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            min-width: 0;
+        }
+
+        .switch-label .title { font-size: 12px; color: rgba(210, 220, 255, 0.9); }
+        .switch-label .desc { font-size: 11px; color: rgba(210, 220, 255, 0.55); }
+
+        .switch {
+            appearance: none;
+            position: relative;
+            width: 42px;
+            height: 24px;
+            border-radius: 999px;
+            background: rgba(145, 164, 255, 0.18);
+            border: 1px solid var(--border-medium);
+            cursor: pointer;
+            outline: none;
+            transition: background 0.15s, border-color 0.15s;
+        }
+
+        .switch::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #fff;
+            transition: transform 0.15s;
+        }
+
+        .switch:checked {
+            background: rgba(97, 140, 255, 0.34);
+            border-color: rgba(97, 140, 255, 0.45);
+        }
+
+        .switch:checked::after { transform: translateX(18px); }
+
         .path {
             user-select: text;
             font: 500 11px/1.6 Consolas, 'Courier New', monospace;
@@ -532,6 +586,13 @@
                 <div class="card">
                     <div class="card-title">配置</div>
                     <div class="card-desc">修改 which-key.toml 或插件后，可在此重新加载，无需重启程序。</div>
+                    <div class="switch-row">
+                        <div class="switch-label">
+                            <div class="title">开机自启</div>
+                            <div class="desc">登录 Windows 后自动启动 Which-Key Windows</div>
+                        </div>
+                        <input class="switch" id="autostart-switch" type="checkbox">
+                    </div>
                     <div class="actions" style="margin-top:0">
                         <button class="btn btn-ghost" id="btn-open-config">打开配置</button>
                         <button class="btn btn-ghost" id="btn-open-config-dir">打开配置目录</button>
@@ -636,6 +697,10 @@
                     <div class="row">
                         <span class="row-label">插件目录</span>
                         <span class="path" id="about-plugin-dir">-</span>
+                    </div>
+                    <div class="row">
+                        <span class="row-label">开机自启</span>
+                        <span class="path" id="about-autostart">-</span>
                     </div>
                 </div>
             </div>
@@ -1122,6 +1187,9 @@
             document.getElementById('about-version').textContent = 'v' + state.version;
             document.getElementById('about-config').textContent = state.configPath;
             document.getElementById('about-plugin-dir').textContent = state.pluginDir;
+            const autostartEnabled = !!state.autostartEnabled;
+            document.getElementById('autostart-switch').checked = autostartEnabled;
+            document.getElementById('about-autostart').textContent = autostartEnabled ? '已开启' : '已关闭';
             document.getElementById('nav-version').textContent = 'Which-Key v' + state.version;
         }
 
@@ -1163,6 +1231,10 @@
 
         document.getElementById('btn-open-config-dir').addEventListener('click', () => {
             sendToHost({ type: 'openConfigDir' });
+        });
+
+        document.getElementById('autostart-switch').addEventListener('change', (event) => {
+            sendToHost({ type: 'toggleAutostart', enabled: event.target.checked });
         });
 
         document.getElementById('btn-open-config-bridge').addEventListener('click', () => {
