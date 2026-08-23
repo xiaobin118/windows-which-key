@@ -14,3 +14,7 @@
 # Local config
 local.toml
 .claude/settings.local.json
+
+# Learning notes (not part of the project)
+docs/automata_tutor.md
+rust-tutor/
