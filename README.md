@@ -2,12 +2,9 @@
 
 Windows Which-Key 是 Windows 桌面快捷键提示工具：按住修饰键即可查看当前应用可用的快捷键。它不会执行或拦截普通快捷键。
 
-## v1.5 新功能
+Read in English: [README.md](./README.md)
 
-- 浮层会显示当前应用上下文，例如 Codex Desktop、Codex CLI、Claude Code、VS Code、Word、Excel 或 PowerPoint。
-- 内置插件新增 Codex Desktop，并保留 Codex CLI、Claude Code 与常见办公应用。
-- 控制面板支持主题编辑、开机自启开关、插件导入/导出、新建插件模板、直接编辑用户插件文件。
-- 托盘菜单支持重新加载配置、打开配置文件、打开配置目录、打开插件目录、打开控制面板和退出。
+Read in Chinese: [README.zh-CN.md](./README.zh-CN.md)
 
 ## Quick Start
 
