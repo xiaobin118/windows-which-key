@@ -172,6 +172,12 @@ fn main() -> Result<()> {
                         .spawn()
                         .context("打开插件目录失败")?;
                 }
+                Some(control_panel::PanelCommand::OpenConfig) => {
+                    std::process::Command::new("notepad.exe")
+                        .arg(&config_path)
+                        .spawn()
+                        .context("打开全局配置失败")?;
+                }
                 Some(control_panel::PanelCommand::SetTheme(theme)) => {
                     match apply_theme_configuration(
                         &config_path,

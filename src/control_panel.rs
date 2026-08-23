@@ -26,6 +26,8 @@ pub enum PanelCommand {
     SetTheme(ThemeConfig),
     /// 编辑过程中实时预览主题（只改浮层，不写文件）。
     PreviewTheme(ThemeConfig),
+    /// 在记事本中打开全局配置文件。
+    OpenConfig,
     /// 在资源管理器中打开用户插件目录。
     OpenPluginDir,
     /// 页面加载完成，请求推送完整状态（解决 NavigateToString 异步竞态）。
@@ -220,6 +222,7 @@ pub fn parse_panel_message(raw: &str) -> Option<PanelCommand> {
     match value.get("type").and_then(|t| t.as_str()) {
         Some("reload") => Some(PanelCommand::ReloadConfig),
         Some("ready") => Some(PanelCommand::RequestState),
+        Some("openConfig") => Some(PanelCommand::OpenConfig),
         Some("openPluginDir") => Some(PanelCommand::OpenPluginDir),
         Some(kind @ ("setTheme" | "previewTheme")) => {
             match serde_json::from_value::<ThemeConfig>(
@@ -487,6 +490,10 @@ disabled = true
         assert_eq!(
             parse_panel_message(r#""{\"type\":\"reload\"}""#),
             Some(PanelCommand::ReloadConfig)
+        );
+        assert_eq!(
+            parse_panel_message(r#"{"type":"openConfig"}"#),
+            Some(PanelCommand::OpenConfig)
         );
     }
 

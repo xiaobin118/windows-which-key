@@ -129,6 +129,78 @@
         .card-title { font-size: 14px; font-weight: 600; color: var(--text-keycap); }
         .card-desc { margin: 4px 0 14px; color: rgba(210, 220, 255, 0.5); font-size: 12px; }
 
+        .section-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .section-note {
+            color: rgba(210, 220, 255, 0.48);
+            font-size: 11px;
+            line-height: 1.4;
+        }
+
+        .plugin-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .searchbox {
+            flex: 1 1 240px;
+            min-width: 200px;
+            height: 32px;
+            padding: 0 12px;
+            color: var(--text-primary);
+            font: 500 12px/32px 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-medium);
+            border-radius: 8px;
+            outline: none;
+        }
+
+        .searchbox::placeholder { color: rgba(210, 220, 255, 0.42); }
+        .searchbox:focus { border-color: var(--accent-start); box-shadow: 0 0 0 2px rgba(97, 140, 255, 0.14); }
+
+        .filter-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .filter-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            height: 30px;
+            padding: 0 10px;
+            color: var(--text-muted);
+            font-size: 11px;
+            border: 1px solid var(--divider);
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.02);
+            cursor: pointer;
+        }
+
+        .filter-chip.active {
+            color: var(--text-keycap);
+            border-color: rgba(97, 140, 255, 0.4);
+            background: rgba(97, 140, 255, 0.11);
+        }
+
+        .filter-count {
+            padding: 1px 5px;
+            color: var(--text-accent);
+            font: 700 10px/1 Consolas, 'Courier New', monospace;
+            background: rgba(97, 140, 255, 0.12);
+            border-radius: 999px;
+        }
+
         .row {
             display: flex;
             align-items: center;
@@ -461,6 +533,7 @@
                     <div class="card-title">配置</div>
                     <div class="card-desc">修改 which-key.toml 或插件后，可在此重新加载，无需重启程序。</div>
                     <div class="actions" style="margin-top:0">
+                        <button class="btn btn-ghost" id="btn-open-config">打开配置</button>
                         <button class="btn btn-primary" id="btn-reload">重新加载配置</button>
                         <span class="status" id="reload-status"></span>
                     </div>
@@ -508,8 +581,23 @@
             <div class="section" id="section-plugins">
                 <div class="section-title">插件</div>
                 <div class="card">
-                    <div class="card-title">内置插件</div>
-                    <div class="card-desc">随程序附带，为常用应用提供快捷键数据。</div>
+                    <div class="section-head">
+                        <div>
+                            <div class="card-title">内置插件</div>
+                            <div class="card-desc">随程序附带，为常用应用提供快捷键数据。</div>
+                        </div>
+                        <span class="badge" id="plugin-summary">0 条</span>
+                    </div>
+                    <div class="plugin-toolbar">
+                        <input class="searchbox" id="plugin-search" type="search" placeholder="搜索插件名、进程名、文件名或错误信息">
+                        <div class="filter-group" id="plugin-filters">
+                            <button class="filter-chip active" data-filter="all">全部 <span class="filter-count" id="count-all">0</span></button>
+                            <button class="filter-chip" data-filter="builtIn">内置 <span class="filter-count" id="count-builtIn">0</span></button>
+                            <button class="filter-chip" data-filter="user">用户 <span class="filter-count" id="count-user">0</span></button>
+                            <button class="filter-chip" data-filter="disabled">已禁用 <span class="filter-count" id="count-disabled">0</span></button>
+                            <button class="filter-chip" data-filter="invalid">无效 <span class="filter-count" id="count-invalid">0</span></button>
+                        </div>
+                    </div>
                     <div id="builtin-plugins"></div>
                 </div>
                 <div class="card">
@@ -872,6 +960,7 @@
         }
 
         function renderPlugins(plugins) {
+            window.__pluginCache = plugins;
             const builtinHost = document.getElementById('builtin-plugins');
             builtinHost.replaceChildren();
             builtinHost.className = 'plugin-list';
@@ -913,6 +1002,112 @@
                 });
             }
             document.getElementById('plugin-dir').textContent = plugins.dir;
+            updatePluginSummary(plugins);
+            renderPluginFilters();
+            applyPluginFilter();
+        }
+
+        function updatePluginSummary(plugins) {
+            const all = [...plugins.builtIn, ...plugins.user];
+            const counts = {
+                all: all.length,
+                builtIn: plugins.builtIn.length,
+                user: plugins.user.length,
+                disabled: all.filter((plugin) => plugin.disabled).length,
+                invalid: plugins.user.filter((plugin) => !plugin.valid).length,
+            };
+            document.getElementById('plugin-summary').textContent = counts.all + ' 条';
+            Object.entries(counts).forEach(([key, value]) => {
+                const node = document.getElementById('count-' + key);
+                if (node) node.textContent = value;
+            });
+        }
+
+        function renderPluginFilters() {
+            const container = document.getElementById('plugin-filters');
+            container.querySelectorAll('.filter-chip').forEach((chip) => {
+                chip.onclick = () => {
+                    filterState.scope = chip.dataset.filter;
+                    container.querySelectorAll('.filter-chip').forEach((node) => node.classList.remove('active'));
+                    chip.classList.add('active');
+                    applyPluginFilter();
+                };
+            });
+        }
+
+        const filterState = {
+            query: '',
+            scope: 'all',
+        };
+
+        function pluginSearchText(plugin) {
+            return [
+                plugin.name,
+                plugin.id,
+                plugin.file,
+                ...(plugin.processes || []),
+                plugin.error || '',
+                plugin.disabled ? 'disabled' : '',
+                plugin.valid === false ? 'invalid' : '',
+            ].join(' ').toLowerCase();
+        }
+
+        function pluginMatchesScope(plugin) {
+            if (filterState.scope === 'all') return true;
+            if (filterState.scope === 'builtIn') return plugin.origin === 'builtIn';
+            if (filterState.scope === 'user') return plugin.origin === 'user';
+            if (filterState.scope === 'disabled') return !!plugin.disabled;
+            if (filterState.scope === 'invalid') return plugin.valid === false;
+            return true;
+        }
+
+        function applyPluginFilter() {
+            const query = filterState.query.trim().toLowerCase();
+            document.querySelectorAll('#builtin-plugins .plugin-card, #user-plugins .plugin-card, #user-plugins .empty')
+                .forEach((node) => node.remove());
+
+            const builtinHost = document.getElementById('builtin-plugins');
+            const userHost = document.getElementById('user-plugins');
+
+            const builtins = window.__pluginCache?.builtIn || [];
+            const users = window.__pluginCache?.user || [];
+
+            const filteredBuiltIns = builtins.filter((plugin) => pluginMatchesScope(plugin) && pluginSearchText(plugin).includes(query));
+            const filteredUsers = users.filter((plugin) => pluginMatchesScope(plugin) && pluginSearchText(plugin).includes(query));
+
+            builtinHost.replaceChildren();
+            filteredBuiltIns.forEach((plugin) => {
+                const rightNodes = [badgeNode(plugin.bindings + ' 条'), tagNode('内置')];
+                if (plugin.disabled) rightNodes.push(tagNode('已禁用', 'disabled'));
+                builtinHost.appendChild(buildPluginCard(
+                    plugin.name, plugin.name, plugin.processes.join(', '), rightNodes,
+                    { disabled: plugin.disabled },
+                ));
+            });
+
+            userHost.replaceChildren();
+            if (filteredUsers.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'empty';
+                empty.textContent = (query || filterState.scope !== 'all') ? '没有匹配的插件' : '暂无用户插件';
+                userHost.appendChild(empty);
+            } else {
+                filteredUsers.forEach((plugin) => {
+                    const rightNodes = [badgeNode(plugin.bindings + ' 条'), tagNode('用户', 'user')];
+                    if (plugin.disabled) rightNodes.push(tagNode('已禁用', 'disabled'));
+                    if (!plugin.valid) rightNodes.push(tagNode('无效', 'disabled'));
+                    const subtitle = plugin.valid
+                        ? (plugin.processes.length ? plugin.processes.join(', ') : plugin.file)
+                        : plugin.error;
+                    userHost.appendChild(buildPluginCard(
+                        plugin.name,
+                        plugin.name,
+                        subtitle,
+                        rightNodes,
+                        { disabled: plugin.disabled, invalid: !plugin.valid },
+                    ));
+                });
+            }
         }
 
         function renderState(state) {
@@ -956,6 +1151,10 @@
             }
         });
 
+        document.getElementById('btn-open-config').addEventListener('click', () => {
+            sendToHost({ type: 'openConfig' });
+        });
+
         document.getElementById('btn-save-theme').addEventListener('click', () => {
             if (!themeDraft) return;
             const status = document.getElementById('theme-status');
@@ -975,6 +1174,11 @@
 
         document.getElementById('btn-open-plugin-dir').addEventListener('click', () => {
             sendToHost({ type: 'openPluginDir' });
+        });
+
+        document.getElementById('plugin-search').addEventListener('input', (event) => {
+            filterState.query = event.target.value;
+            applyPluginFilter();
         });
     </script>
 </body>
