@@ -1,4 +1,4 @@
-# Windows Which-Key v1.5.1
+# Windows Which-Key
 
 Windows Which-Key is a Windows desktop shortcut hint tool: hold down the modifier key to view the available shortcuts for the current application. It does not execute or block regular shortcuts.
 
@@ -17,7 +17,7 @@ Read in Chinese: [README.zh-CN.md](./README.zh-CN.md)
 Use one of the release packages from [GitHub Releases](https://github.com/xiaobin118/windows-which-key/releases):
 
 - NSIS installer: run `which-key-windows-setup.exe`. It installs the app, creates Start Menu and desktop shortcuts, and registers an uninstaller.
-- Portable zip: unzip `which-key-windows-v1.5.1-windows-x64.zip` and run `which-key-windows.exe`.
+- Portable zip: unzip `which-key-windows-vXX-windows-x64.zip` and run `which-key-windows.exe`.
 - Source build: clone the repository and run `cargo run --bin which-key-windows`.
 
 ## Usage Options
