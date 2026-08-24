@@ -17,7 +17,7 @@ Read in Chinese: [README.zh-CN.md](./README.zh-CN.md)
 从 [GitHub Releases](https://github.com/xiaobin118/windows-which-key/releases) 下载发布包：
 
 - NSIS 安装器：运行 `which-key-windows-setup.exe`。它会安装程序、创建开始菜单和桌面快捷方式，并注册卸载项。
-- 便携版 zip：解压 `which-key-windows-v1.5.1-windows-x64.zip`，然后运行 `which-key-windows.exe`。
+- 便携版 zip：解压 `which-key-windows-vXX-windows-x64.zip`，然后运行 `which-key-windows.exe`。
 - 源码运行：克隆仓库后执行 `cargo run --bin which-key-windows`。
 
 在项目根目录运行：
