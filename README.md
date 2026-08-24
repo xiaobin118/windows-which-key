@@ -129,3 +129,6 @@ The app creates its config and plugin folders under `%APPDATA%\which-key-windows
 - Invalid user plugins are skipped with a warning; other plugins still load.
 - Invalid built-in plugins or global config block startup.
 - If WebView2 errors appear or the window does not show, repair WebView2 Runtime and try again.
+
+## Inspiration
+[folke/which-key.nvim](https://github.com/folke/which-key.nvim) WhichKey helps you remember your Neovim keymaps, by showing available keybindings in a popup as you type.
