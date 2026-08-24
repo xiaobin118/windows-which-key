@@ -115,3 +115,6 @@ priority = "essential"
 - 用户插件无效时，应用会忽略该文件并显示警告，其他插件仍会加载。
 - 内置插件或全局配置无效会阻止启动。
 - 若启动时提示 WebView2 相关错误或窗口没有显示，安装/修复 WebView2 Runtime 后重试。
+
+## 灵感
+[folke/which-key.nvim](https://github.com/folke/which-key.nvim) 一个neovim插件， 帮助你使用自己的keymap
