@@ -1,4 +1,4 @@
-# Windows Which-Key v1.5.1
+# Windows Which-Key
 
 Windows Which-Key 是 Windows 桌面快捷键提示工具：按住修饰键即可查看当前应用可用的快捷键。它不会执行或拦截普通快捷键。
 
