@@ -6,7 +6,7 @@
 !define APP_VENDOR "Which-Key"
 
 Name "${APP_NAME}"
-OutFile "dist\\which-key-windows-setup.exe"
+OutFile "..\\dist\\which-key-windows-setup.exe"
 InstallDir "$PROGRAMFILES64\\Which-Key Windows"
 InstallDirRegKey HKLM "${APP_REG_KEY}" "InstallLocation"
 RequestExecutionLevel admin
