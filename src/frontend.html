@@ -360,6 +360,9 @@
         const appNameEl = document.getElementById('app-name');
         const statusTextEl = document.getElementById('status-text');
         const footerHintEl = document.getElementById('footer-hint');
+        let lastThemeSignature = '';
+        let lastEntrySignature = '';
+        let lastGroupSignature = '';
 
         function setStatusCount(count, detail = '') {
             statusTextEl.textContent = count + ' 项可用';
@@ -425,6 +428,10 @@
         }
 
         function renderEntries(entries, breadcrumb, clear = true) {
+            const signature = JSON.stringify({ entries, breadcrumb, clear });
+            if (signature === lastEntrySignature) return;
+            lastEntrySignature = signature;
+            lastGroupSignature = '';
             renderBreadcrumb(breadcrumb);
 
             if (clear) entriesEl.replaceChildren();
@@ -436,6 +443,10 @@
         }
 
         function renderGroupedEntries(entries) {
+            const signature = JSON.stringify(entries);
+            if (signature === lastGroupSignature) return;
+            lastGroupSignature = signature;
+            lastEntrySignature = '';
             entriesEl.replaceChildren();
 
             const categories = new Map();
@@ -549,6 +560,9 @@
                     hide();
                     break;
                 case 'theme':
+                    const themeSignature = JSON.stringify(data.theme || {});
+                    if (themeSignature === lastThemeSignature) break;
+                    lastThemeSignature = themeSignature;
                     applyTheme(data.theme || {});
                     break;
             }

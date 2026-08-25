@@ -2,12 +2,9 @@
 //! 展示 `control_panel.html`。只负责窗口生命周期与消息转发，业务
 //! 动作（如重载配置）通过 `PanelCommand` 通道交回主循环执行。
 
-use crate::plugin::{parse_plugin_toml, PluginOrigin, BUILTIN_PLUGINS};
 use crate::theme::ThemeConfig;
 use crate::webview_bridge::WebView2Bridge;
 use anyhow::{Context, Result};
-use std::collections::HashSet;
-use std::path::Path;
 use std::sync::mpsc::Sender;
 use windows::Win32::Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, RECT, WPARAM};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
@@ -182,14 +179,9 @@ impl ControlPanel {
     }
 
     /// 推送完整状态（版本、主题、插件清单、路径）给页面。
-    pub fn send_state(&self, theme: &ThemeConfig) -> Result<()> {
+    pub fn send_state(&self, snapshot: &crate::config::ConfigurationSnapshot) -> Result<()> {
         let version = env!("CARGO_PKG_VERSION");
-        let config_path = global_config_path()?;
-        let plugin_dir = config_path
-            .parent()
-            .context("配置路径缺少父目录")?
-            .join("plugins");
-        let state = build_state_json(version, &config_path, &plugin_dir, theme);
+        let state = build_state_json(version, snapshot);
         self.bridge
             .execute_script(&format!("window.postMessage({state}, '*');"))
     }
@@ -306,123 +298,21 @@ pub fn write_theme_to_toml(source: &str, theme: &ThemeConfig) -> Result<String> 
 /// 构建推送给页面的状态 JSON。
 pub fn build_state_json(
     version: &str,
-    config_path: &Path,
-    plugin_dir: &Path,
-    theme: &ThemeConfig,
+    snapshot: &crate::config::ConfigurationSnapshot,
 ) -> serde_json::Value {
-    let user_plugins = read_user_plugins(plugin_dir);
-    let disabled_builtin_ids = user_plugins
-        .iter()
-        .filter(|plugin| plugin["disabled"].as_bool().unwrap_or(false))
-        .filter_map(|plugin| plugin["id"].as_str())
-        .map(ToOwned::to_owned)
-        .collect::<HashSet<_>>();
-    let built_in = BUILTIN_PLUGINS
-        .iter()
-        .filter_map(|(_, source)| parse_plugin_toml(source, PluginOrigin::BuiltIn).ok())
-        .map(|plugin| {
-            let disabled = plugin.disabled || disabled_builtin_ids.contains(&plugin.id);
-            serde_json::json!({
-                "id": plugin.id,
-                "name": plugin.name,
-                "processes": plugin.processes,
-                "bindings": plugin.bindings.len(),
-                "disabled": disabled,
-                "origin": "builtIn",
-            })
-        })
-        .collect::<Vec<_>>();
-
     serde_json::json!({
         "type": "state",
         "version": version,
-        "configPath": config_path.to_string_lossy(),
-        "pluginDir": plugin_dir.to_string_lossy(),
+        "configPath": snapshot.config_path.to_string_lossy(),
+        "pluginDir": snapshot.plugin_catalog.dir.to_string_lossy(),
         "autostartEnabled": crate::autostart::is_enabled().unwrap_or(false),
-        "theme": theme,
+        "theme": snapshot.theme,
         "plugins": {
-            "builtIn": built_in,
-            "user": user_plugins,
-            "dir": plugin_dir.to_string_lossy(),
+            "builtIn": snapshot.plugin_catalog.built_in,
+            "user": snapshot.plugin_catalog.user,
+            "dir": snapshot.plugin_catalog.dir.to_string_lossy(),
         },
     })
-}
-
-fn read_user_plugins(plugin_dir: &Path) -> Vec<serde_json::Value> {
-    let mut paths = plugin_dir
-        .read_dir()
-        .map(|entries| {
-            entries
-                .filter_map(|entry| entry.ok())
-                .map(|entry| entry.path())
-                .filter(|path| {
-                    path.is_file()
-                        && path
-                            .extension()
-                            .and_then(|extension| extension.to_str())
-                            .is_some_and(|extension| extension.eq_ignore_ascii_case("toml"))
-                })
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
-    paths.sort_by(|left, right| {
-        left.file_name()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .to_ascii_lowercase()
-            .cmp(
-                &right
-                    .file_name()
-                    .unwrap_or_default()
-                    .to_string_lossy()
-                    .to_ascii_lowercase(),
-            )
-            .then_with(|| left.cmp(right))
-    });
-
-    paths
-        .into_iter()
-        .map(|path| {
-            let file = path
-                .file_name()
-                .unwrap_or_default()
-                .to_string_lossy()
-                .into_owned();
-            match std::fs::read_to_string(&path)
-                .with_context(|| format!("读取用户插件失败: {}", path.display()))
-                .and_then(|source| parse_plugin_toml(&source, PluginOrigin::User(path.clone())))
-            {
-                Ok(plugin) => serde_json::json!({
-                    "file": file,
-                    "id": plugin.id,
-                    "name": plugin.name,
-                    "processes": plugin.processes,
-                    "bindings": plugin.bindings.len(),
-                    "disabled": plugin.disabled,
-                    "origin": "user",
-                    "valid": true,
-                }),
-                Err(error) => serde_json::json!({
-                    "file": file,
-                    "id": file.trim_end_matches(".toml"),
-                    "name": file,
-                    "processes": [],
-                    "bindings": 0,
-                    "disabled": false,
-                    "origin": "user",
-                    "valid": false,
-                    "error": error.to_string(),
-                }),
-            }
-        })
-        .collect()
-}
-
-fn global_config_path() -> Result<std::path::PathBuf> {
-    let app_data = std::env::var_os("APPDATA").context("APPDATA 未设置")?;
-    Ok(std::path::PathBuf::from(app_data)
-        .join("which-key-windows")
-        .join("which-key.toml"))
 }
 
 pub fn default_plugin_template() -> &'static str {
@@ -444,15 +334,27 @@ priority = "recommended"
 mod tests {
     use super::*;
 
+    fn snapshot_from_plugins(plugin_dir: &std::path::Path) -> crate::config::ConfigurationSnapshot {
+        let report = crate::plugin::PluginSnapshot::load(crate::plugin::BUILTIN_PLUGINS, plugin_dir)
+            .unwrap();
+        crate::config::ConfigurationSnapshot {
+            config_path: plugin_dir.join("which-key.toml"),
+            global: crate::config::parse_toml("[globals]\n\"C-c\" = { desc = \"Copy\" }")
+                .unwrap(),
+            plugins: report.snapshot,
+            plugin_catalog: report.catalog,
+            theme: ThemeConfig::default_theme(),
+        }
+    }
+
     #[test]
     fn state_includes_version_theme_and_builtin_plugins() {
         let temp = tempfile::tempdir().unwrap();
-        let config_path = temp.path().join("which-key.toml");
         let plugin_dir = temp.path().join("plugins");
         std::fs::create_dir_all(&plugin_dir).unwrap();
 
-        let theme = ThemeConfig::default_theme();
-        let state = build_state_json("9.9.9", &config_path, &plugin_dir, &theme);
+        let snapshot = snapshot_from_plugins(&plugin_dir);
+        let state = build_state_json("9.9.9", &snapshot);
 
         assert_eq!(state["version"], "9.9.9");
         assert_eq!(state["theme"]["background"], "#0B0F1F");
@@ -470,12 +372,7 @@ mod tests {
         std::fs::write(plugin_dir.join("my-tool.toml"), "# plugin").unwrap();
         std::fs::write(plugin_dir.join("notes.txt"), "ignore me").unwrap();
 
-        let state = build_state_json(
-            "0.0.0",
-            &temp.path().join("c.toml"),
-            &plugin_dir,
-            &ThemeConfig::default_theme(),
-        );
+        let state = build_state_json("0.0.0", &snapshot_from_plugins(&plugin_dir));
 
         let user = state["plugins"]["user"].as_array().unwrap();
         assert_eq!(user.len(), 1);
@@ -500,15 +397,13 @@ disabled = true
         )
         .unwrap();
 
-        let state = build_state_json(
-            "0.0.0",
-            &temp.path().join("c.toml"),
-            &plugin_dir,
-            &ThemeConfig::default_theme(),
-        );
+        let state = build_state_json("0.0.0", &snapshot_from_plugins(&plugin_dir));
 
         let built_in = state["plugins"]["builtIn"].as_array().unwrap();
-        let vscode = built_in
+        assert!(built_in.iter().any(|plugin| plugin["id"] == "vscode"));
+
+        let user = state["plugins"]["user"].as_array().unwrap();
+        let vscode = user
             .iter()
             .find(|plugin| plugin["id"] == "vscode")
             .unwrap();

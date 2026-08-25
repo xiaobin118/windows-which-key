@@ -197,8 +197,14 @@ mod tests {
 
     fn configuration_snapshot() -> ConfigurationSnapshot {
         ConfigurationSnapshot {
+            config_path: std::path::PathBuf::from("which-key.toml"),
             global: parse_toml("[globals]\n\"C-c\" = { desc = \"Copy\" }").unwrap(),
             plugins: Arc::new(PluginSnapshot::default()),
+            plugin_catalog: Arc::new(crate::plugin::PluginCatalog {
+                built_in: vec![],
+                user: vec![],
+                dir: std::path::PathBuf::from("plugins"),
+            }),
             theme: ThemeConfig::default_theme(),
         }
     }

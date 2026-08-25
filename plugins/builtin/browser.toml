@@ -1,0 +1,112 @@
+schema_version = 1
+id = "browser"
+name = "Chrome / Edge"
+processes = ["chrome.exe", "msedge.exe"]
+
+[[bindings]]
+keys = ["Ctrl+L"]
+description = "聚焦地址栏"
+category = "常用"
+priority = "essential"
+
+[[bindings]]
+keys = ["Ctrl+T"]
+description = "新建标签页"
+category = "常用"
+priority = "essential"
+
+[[bindings]]
+keys = ["Ctrl+W"]
+description = "关闭当前标签页"
+category = "常用"
+priority = "essential"
+
+[[bindings]]
+keys = ["Ctrl+Shift+T"]
+description = "重新打开已关闭的标签页"
+category = "常用"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Tab"]
+description = "切换到下一个标签页"
+category = "导航"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Shift+Tab"]
+description = "切换到上一个标签页"
+category = "导航"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+1"]
+description = "切换到第一个标签页"
+category = "导航"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+9"]
+description = "切换到最后一个标签页"
+category = "导航"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+R", "F5"]
+description = "刷新当前页面"
+category = "常用"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+N"]
+description = "新建窗口"
+category = "常用"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Shift+N"]
+description = "打开无痕窗口"
+category = "常用"
+priority = "advanced"
+
+[[bindings]]
+keys = ["Ctrl+H"]
+description = "打开历史记录"
+category = "导航"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+J"]
+description = "打开下载内容"
+category = "导航"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+D"]
+description = "收藏当前页面"
+category = "书签"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Shift+B"]
+description = "显示／隐藏书签栏"
+category = "书签"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+F"]
+description = "在当前页面中查找"
+category = "常用"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Shift+I"]
+description = "打开开发者工具"
+category = "工具"
+priority = "advanced"
+
+[[bindings]]
+keys = ["F11"]
+description = "切换全屏"
+category = "常用"
+priority = "recommended"

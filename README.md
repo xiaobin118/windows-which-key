@@ -1,4 +1,4 @@
-# Windows Which-Key
+# Windows Which-Key v1.5.2
 
 Windows Which-Key is a Windows desktop shortcut hint tool: hold down the modifier key to view the available shortcuts for the current application. It does not execute or block regular shortcuts.
 
@@ -17,7 +17,7 @@ Read in Chinese: [README.zh-CN.md](./README.zh-CN.md)
 Use one of the release packages from [GitHub Releases](https://github.com/xiaobin118/windows-which-key/releases):
 
 - NSIS installer: run `which-key-windows-setup.exe`. It installs the app, creates Start Menu and desktop shortcuts, and registers an uninstaller.
-- Portable zip: unzip `which-key-windows-vXX-windows-x64.zip` and run `which-key-windows.exe`.
+- Portable zip: unzip `which-key-windows-v1.5.2-windows-x64.zip` and run `which-key-windows.exe`.
 - Source build: clone the repository and run `cargo run --bin which-key-windows`.
 
 ## Usage Options
@@ -52,7 +52,7 @@ User plugins live in:
 %APPDATA%\which-key-windows\plugins\
 ```
 
-Built-in plugins cover Codex Desktop, Codex CLI, Claude Code, VS Code, Word, Excel, and PowerPoint. Windows global shortcuts are merged with the active app's shortcuts.
+Built-in plugins cover Codex Desktop, Codex CLI, Claude Code, Chrome / Edge, Windows Terminal, VS Code, Word, Excel, and PowerPoint. Windows global shortcuts are merged with the active app's shortcuts.
 
 Open the control panel with `Win+Shift+C` or from the tray icon. From there you can open the config file, open the plugin directory, import/export plugin bundles, create a plugin template, edit user plugins, adjust the theme, and toggle autostart.
 
@@ -112,7 +112,7 @@ To disable a built-in plugin completely, create a user plugin file with the same
 The repository ships Windows release packages as GitHub Release assets. Download the latest installer or the portable zip.
 
 - Installer: run `which-key-windows-setup.exe` and follow the prompts.
-- Portable: unzip `which-key-windows-v1.5.1-windows-x64.zip` and run `which-key-windows.exe`.
+- Portable: unzip `which-key-windows-v1.5.2-windows-x64.zip` and run `which-key-windows.exe`.
 
 Package contents are intentionally small:
 

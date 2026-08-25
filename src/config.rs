@@ -11,6 +11,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 
 use crate::plugin::{PluginLoadReport, PluginSnapshot, PluginWarning};
+use crate::plugin::PluginCatalog;
 
 #[derive(Debug, Deserialize)]
 struct RawConfig {
@@ -45,8 +46,10 @@ pub struct Config {
 
 /// Immutable configuration published as a single unit to runtime consumers.
 pub struct ConfigurationSnapshot {
+    pub config_path: PathBuf,
     pub global: ShortcutRegistry,
     pub plugins: Arc<PluginSnapshot>,
+    pub plugin_catalog: Arc<PluginCatalog>,
     pub theme: ThemeConfig,
 }
 
@@ -68,7 +71,12 @@ impl ConfigurationService {
         user_dir: &Path,
     ) -> Result<(Self, Vec<PluginWarning>)> {
         let (snapshot, warnings) = load_snapshot(global_source, built_ins, user_dir)?;
-        Ok((Self::new(snapshot), warnings))
+        Ok((
+            Self {
+                current: RwLock::new(Arc::new(snapshot)),
+            },
+            warnings,
+        ))
     }
 
     pub fn current(&self) -> Arc<ConfigurationSnapshot> {
@@ -103,15 +111,24 @@ fn load_snapshot(
 ) -> Result<(ConfigurationSnapshot, Vec<PluginWarning>)> {
     let global = parse_toml(global_source)?;
     let theme = parse_theme(global_source)?;
-    let PluginLoadReport { snapshot, warnings } = PluginSnapshot::load(built_ins, user_dir)?;
+    let PluginLoadReport { snapshot, catalog, warnings } = PluginSnapshot::load(built_ins, user_dir)?;
     Ok((
         ConfigurationSnapshot {
+            config_path: global_config_path_from_source(global_source)?,
             global,
             plugins: snapshot,
+            plugin_catalog: catalog,
             theme,
         },
         warnings,
     ))
+}
+
+fn global_config_path_from_source(_global_source: &str) -> Result<PathBuf> {
+    let app_data = std::env::var_os("APPDATA").context("APPDATA 未设置")?;
+    Ok(PathBuf::from(app_data)
+        .join("which-key-windows")
+        .join("which-key.toml"))
 }
 
 /// 解析全局配置里的 `[theme]` 段。缺失时使用默认主题；存在但

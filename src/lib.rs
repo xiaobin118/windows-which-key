@@ -9,6 +9,7 @@ pub mod plugin;
 pub mod plugin_bundle;
 pub mod registry;
 pub mod runtime_snapshot;
+pub mod snapshot_fingerprint;
 pub mod shortcut;
 pub mod state_machine;
 pub mod theme;

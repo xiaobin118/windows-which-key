@@ -58,6 +58,43 @@ Essential: `Ctrl+P`, `Ctrl+Shift+P`, `Ctrl+/`, `Alt+Up`, `Alt+Down`, `F2`, `F12`
 
 Source: [VS Code keyboard shortcuts](https://code.visualstudio.com/docs/configure/keybindings)
 
+## Chrome / Edge
+
+| Shortcut | Description |
+| --- | --- |
+| `Ctrl + L` | 聚焦地址栏 |
+| `Ctrl + T` | 新建标签页 |
+| `Ctrl + W` | 关闭当前标签页 |
+| `Ctrl + Shift + T` | 重新打开已关闭的标签页 |
+| `Ctrl + Tab` / `Ctrl + Shift + Tab` | 切换标签页 |
+| `Ctrl + 1` | 切换到第一个标签页 |
+| `Ctrl + 9` | 切换到最后一个标签页 |
+| `Ctrl + R` / `F5` | 刷新当前页面 |
+| `Ctrl + N` | 新建窗口 |
+| `Ctrl + Shift + N` | 打开无痕窗口 |
+| `Ctrl + H` | 打开历史记录 |
+| `Ctrl + J` | 打开下载内容 |
+| `Ctrl + D` | 收藏当前页面 |
+| `Ctrl + Shift + B` | 显示／隐藏书签栏 |
+| `Ctrl + F` | 在当前页面中查找 |
+| `Ctrl + Shift + I` | 打开开发者工具 |
+| `F11` | 切换全屏 |
+
+Essential: `Ctrl+L`, `Ctrl+T`, `Ctrl+W`.
+
+## Windows Terminal
+
+| Shortcut | Description |
+| --- | --- |
+| `Ctrl + Shift + T` | 打开新标签页 |
+| `Ctrl + Shift + W` | 关闭当前标签页 |
+| `Ctrl + Shift + N` | 打开新窗口 |
+| `Ctrl + Shift + P` | 打开命令面板 |
+| `Ctrl + ,` | 打开设置 |
+| `Alt + Enter` | 切换全屏 |
+
+Essential: `Ctrl+Shift+P`.
+
 ## Microsoft Word
 
 | Shortcut | Description |

@@ -1,0 +1,70 @@
+schema_version = 1
+id = "windows-terminal"
+name = "Windows Terminal"
+processes = ["wt.exe", "windowsterminal.exe"]
+
+[[bindings]]
+keys = ["Ctrl+Shift+T"]
+description = "打开新标签页"
+category = "常用"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Shift+W"]
+description = "关闭当前标签页"
+category = "常用"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Shift+N"]
+description = "打开新窗口"
+category = "常用"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Shift+P"]
+description = "打开命令面板"
+category = "常用"
+priority = "essential"
+
+[[bindings]]
+keys = ["Ctrl+Shift+C"]
+description = "复制所选文本"
+category = "编辑"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Shift+V"]
+description = "粘贴所选文本"
+category = "编辑"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Tab"]
+description = "切换到下一个标签页"
+category = "导航"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Ctrl+Shift+Tab"]
+description = "切换到上一个标签页"
+category = "导航"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Alt+Shift+D"]
+description = "拆分窗格"
+category = "窗格"
+priority = "recommended"
+
+[[bindings]]
+keys = ["Alt+Enter"]
+description = "切换全屏"
+category = "常用"
+priority = "recommended"
+
+[[bindings]]
+keys = ["F11"]
+description = "切换全屏"
+category = "常用"
+priority = "recommended"

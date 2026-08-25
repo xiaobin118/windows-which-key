@@ -1,11 +1,12 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, OnceLock};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::shortcut::{format_shortcut, parse_shortcut};
+use crate::snapshot_fingerprint::{content_fingerprint, source_fingerprint};
 use crate::types::{BindingMetadata, BindingPriority, ShortcutKey};
 
 pub const BUILTIN_PLUGINS: &[(&str, &str)] = &[
@@ -21,6 +22,14 @@ pub const BUILTIN_PLUGINS: &[(&str, &str)] = &[
     (
         "vscode.toml",
         include_str!("../plugins/builtin/vscode.toml"),
+    ),
+    (
+        "browser.toml",
+        include_str!("../plugins/builtin/browser.toml"),
+    ),
+    (
+        "windows-terminal.toml",
+        include_str!("../plugins/builtin/windows-terminal.toml"),
     ),
     ("word.toml", include_str!("../plugins/builtin/word.toml")),
     ("excel.toml", include_str!("../plugins/builtin/excel.toml")),
@@ -189,6 +198,7 @@ pub struct PluginWarning {
 #[derive(Debug)]
 pub struct PluginLoadReport {
     pub snapshot: Arc<PluginSnapshot>,
+    pub catalog: Arc<PluginCatalog>,
     pub warnings: Vec<PluginWarning>,
 }
 
@@ -197,16 +207,54 @@ pub struct PluginSnapshot {
     plugins_by_process: HashMap<String, PluginDefinition>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct PluginCatalogEntry {
+    pub file: Option<String>,
+    pub id: String,
+    pub name: String,
+    pub processes: Vec<String>,
+    pub bindings: usize,
+    pub disabled: bool,
+    pub origin: String,
+    pub valid: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PluginCatalog {
+    pub built_in: Vec<PluginCatalogEntry>,
+    pub user: Vec<PluginCatalogEntry>,
+    pub dir: PathBuf,
+}
+
+#[derive(Clone)]
+enum CachedPluginResult {
+    Valid(PluginDefinition),
+    Invalid(String),
+}
+
+#[derive(Clone)]
+struct CachedUserPlugin {
+    fingerprint: u64,
+    result: CachedPluginResult,
+}
+
+#[derive(Default)]
+struct PluginLoadCache {
+    builtins: HashMap<u64, BTreeMap<String, PluginDefinition>>,
+    user_plugins: HashMap<PathBuf, CachedUserPlugin>,
+}
+
+static PLUGIN_LOAD_CACHE: OnceLock<Mutex<PluginLoadCache>> = OnceLock::new();
+
 impl PluginSnapshot {
     pub fn load(built_ins: &[(&str, &str)], user_dir: &Path) -> Result<PluginLoadReport> {
-        let mut built_in_plugins = Vec::with_capacity(built_ins.len());
-        for (name, source) in built_ins {
-            built_in_plugins.push(
-                parse_plugin_toml(source, PluginOrigin::BuiltIn)
-                    .with_context(|| format!("Invalid built-in plugin {name}"))?,
-            );
-        }
-        let built_in_plugins = merge_origin_plugins(built_in_plugins, "built-in")?;
+        let built_in_plugins = load_builtin_plugins(built_ins)?;
+        let catalog_built_in = built_in_plugins
+            .values()
+            .map(|plugin| plugin_catalog_entry_from_plugin(&Path::new(""), plugin, false, None))
+            .collect();
 
         let mut warnings = Vec::new();
         let mut user_paths = match std::fs::read_dir(user_dir) {
@@ -227,16 +275,43 @@ impl PluginSnapshot {
         sort_plugin_paths(&mut user_paths);
 
         let mut user_plugins = Vec::new();
+        let mut catalog_user = Vec::new();
         for path in user_paths {
-            match std::fs::read_to_string(&path)
-                .with_context(|| format!("Unable to read user plugin {}", path.display()))
-                .and_then(|source| parse_plugin_toml(&source, PluginOrigin::User(path.clone())))
-            {
-                Ok(plugin) => user_plugins.push(plugin),
+            match load_user_plugin(&path) {
+                Ok(Some(plugin)) => {
+                    catalog_user.push(plugin_catalog_entry_from_plugin(&path, &plugin, true, None));
+                    user_plugins.push(plugin);
+                }
+                Ok(None) => {}
                 Err(error) => warnings.push(PluginWarning {
                     path,
                     message: error.to_string(),
                 }),
+            }
+        }
+        for warning in &warnings {
+            if warning.path.extension().and_then(|ext| ext.to_str()).is_some_and(|ext| ext.eq_ignore_ascii_case("toml")) {
+                catalog_user.push(PluginCatalogEntry {
+                    file: warning.path.file_name().map(|name| name.to_string_lossy().into_owned()),
+                    id: warning
+                        .path
+                        .file_stem()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                        .to_ascii_lowercase(),
+                    name: warning
+                        .path
+                        .file_name()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                        .into_owned(),
+                    processes: vec![],
+                    bindings: 0,
+                    disabled: false,
+                    origin: "user".to_string(),
+                    valid: false,
+                    error: Some(warning.message.clone()),
+                });
             }
         }
         let user_plugins = merge_origin_plugins(user_plugins, "user")?;
@@ -267,12 +342,105 @@ impl PluginSnapshot {
 
         Ok(PluginLoadReport {
             snapshot: Arc::new(Self { plugins_by_process }),
+            catalog: Arc::new(PluginCatalog {
+                built_in: catalog_built_in,
+                user: catalog_user,
+                dir: user_dir.to_path_buf(),
+            }),
             warnings,
         })
     }
 
     pub fn for_process(&self, normalized_exe: &str) -> Option<&PluginDefinition> {
         self.plugins_by_process.get(&normalized_exe.to_lowercase())
+    }
+}
+
+pub(crate) fn load_builtin_plugins(
+    built_ins: &[(&str, &str)],
+) -> Result<BTreeMap<String, PluginDefinition>> {
+    let fingerprint = source_fingerprint(built_ins.iter().map(|(name, source)| (*name, *source)));
+    {
+        let cache = plugin_load_cache().lock().expect("plugin cache poisoned");
+        if let Some(plugins) = cache.builtins.get(&fingerprint) {
+            return Ok(plugins.clone());
+        }
+    }
+
+    let mut built_in_plugins = Vec::with_capacity(built_ins.len());
+    for (name, source) in built_ins {
+        built_in_plugins.push(
+            parse_plugin_toml(source, PluginOrigin::BuiltIn)
+                .with_context(|| format!("Invalid built-in plugin {name}"))?,
+        );
+    }
+    let built_in_plugins = merge_origin_plugins(built_in_plugins, "built-in")?;
+
+    let mut cache = plugin_load_cache().lock().expect("plugin cache poisoned");
+    cache.builtins.insert(fingerprint, built_in_plugins.clone());
+    Ok(built_in_plugins)
+}
+
+pub(crate) fn load_user_plugin(path: &Path) -> Result<Option<PluginDefinition>> {
+    let source = std::fs::read_to_string(path)
+        .with_context(|| format!("Unable to read user plugin {}", path.display()))?;
+    let fingerprint = content_fingerprint(&source);
+
+    {
+        let cache = plugin_load_cache().lock().expect("plugin cache poisoned");
+        if let Some(cached) = cache.user_plugins.get(path) {
+            if cached.fingerprint == fingerprint {
+                return match &cached.result {
+                    CachedPluginResult::Valid(plugin) => Ok(Some(plugin.clone())),
+                    CachedPluginResult::Invalid(message) => Err(anyhow!(message.clone())),
+                };
+            }
+        }
+    }
+
+    let result = match parse_plugin_toml(&source, PluginOrigin::User(path.to_path_buf())) {
+        Ok(plugin) => Ok(Some(plugin.clone())),
+        Err(error) => Err(error),
+    };
+
+    let cached = CachedUserPlugin {
+        fingerprint,
+        result: match &result {
+            Ok(Some(plugin)) => CachedPluginResult::Valid(plugin.clone()),
+            Ok(None) => unreachable!(),
+            Err(error) => CachedPluginResult::Invalid(error.to_string()),
+        },
+    };
+
+    let mut cache = plugin_load_cache().lock().expect("plugin cache poisoned");
+    cache.user_plugins.insert(path.to_path_buf(), cached);
+
+    result
+}
+
+fn plugin_load_cache() -> &'static Mutex<PluginLoadCache> {
+    PLUGIN_LOAD_CACHE.get_or_init(|| Mutex::new(PluginLoadCache::default()))
+}
+
+fn plugin_catalog_entry_from_plugin(
+    path: &Path,
+    plugin: &PluginDefinition,
+    valid: bool,
+    error: Option<String>,
+) -> PluginCatalogEntry {
+    PluginCatalogEntry {
+        file: path.file_name().map(|name| name.to_string_lossy().into_owned()),
+        id: plugin.id.clone(),
+        name: plugin.name.clone(),
+        processes: plugin.processes.clone(),
+        bindings: plugin.bindings.len(),
+        disabled: plugin.disabled,
+        origin: match plugin.origin {
+            PluginOrigin::BuiltIn => "builtIn".to_string(),
+            PluginOrigin::User(_) => "user".to_string(),
+        },
+        valid,
+        error,
     }
 }
 
@@ -484,6 +652,10 @@ priority = "essential"
         assert!(report.warnings.is_empty());
         for process in [
             "codex.exe",
+            "chrome.exe",
+            "msedge.exe",
+            "wt.exe",
+            "windowsterminal.exe",
             "chatgpt.exe",
             "claude.exe",
             "code.exe",
@@ -509,6 +681,19 @@ priority = "essential"
                 .unwrap();
             assert_eq!(binding.metadata.priority, BindingPriority::Essential);
         }
+    }
+
+    #[test]
+    fn windows_terminal_plugin_includes_common_tab_and_pane_shortcuts() {
+        let report = PluginSnapshot::load(BUILTIN_PLUGINS, Path::new("missing-user-dir")).unwrap();
+        let plugin = report.snapshot.for_process("wt.exe").unwrap();
+
+        assert_eq!(plugin.binding_description("C-S-c"), Some("复制所选文本"));
+        assert_eq!(plugin.binding_description("C-S-v"), Some("粘贴所选文本"));
+        assert_eq!(plugin.binding_description("C-Tab"), Some("切换到下一个标签页"));
+        assert_eq!(plugin.binding_description("C-S-Tab"), Some("切换到上一个标签页"));
+        assert_eq!(plugin.binding_description("A-S-d"), Some("拆分窗格"));
+        assert_eq!(plugin.binding_description("F11"), Some("切换全屏"));
     }
 
     #[test]

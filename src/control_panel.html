@@ -783,6 +783,8 @@
 
         let themeDraft = null;
         let lastPreviewJson = '';
+        let lastThemeStateJson = '';
+        let lastPluginStateJson = '';
 
         // ── 实时预览：编辑即生效到浮层（防抖 200ms，仅在变化时发送） ──
         let previewTimer = null;
@@ -954,6 +956,9 @@
         }
 
         function renderTheme(theme) {
+            const json = JSON.stringify(theme || {});
+            if (json === lastThemeStateJson) return;
+            lastThemeStateJson = json;
             if (!themeDraft) {
                 buildThemeEditor();
                 buildPresets();
@@ -1041,6 +1046,9 @@
         }
 
         function renderPlugins(plugins) {
+            const json = JSON.stringify(plugins || {});
+            if (json === lastPluginStateJson) return;
+            lastPluginStateJson = json;
             window.__pluginCache = plugins;
             const builtinHost = document.getElementById('builtin-plugins');
             builtinHost.replaceChildren();

@@ -1,5 +1,6 @@
-//! 最终验证：启动 app，注入 Win+Shift+C，截取面板窗口存为 PNG。
+//! 最终验证：启动 app，注入 Win+Shift+C，截取面板窗口。
 
+use std::path::PathBuf;
 use std::time::Duration;
 use windows::Win32::Foundation::{HWND, RECT};
 use windows::Win32::Graphics::Gdi::{
@@ -105,7 +106,8 @@ fn main() {
             if let Ok(hwnd) = FindWindowW(windows::core::w!("WhichKeyControlPanel"), None) {
                 if IsWindowVisible(hwnd).as_bool() && !IsIconic(hwnd).as_bool() {
                     std::thread::sleep(Duration::from_millis(1500));
-                    capture(hwnd, "verification_panel.bmp");
+                    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target").join("verification_panel.bmp");
+                    capture(hwnd, path.to_string_lossy().as_ref());
                     return;
                 }
             }

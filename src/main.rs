@@ -138,7 +138,7 @@ fn main() -> Result<()> {
             match control_panel::parse_panel_message(&raw) {
                 Some(control_panel::PanelCommand::RequestState) => {
                     if let Some(panel) = control_panel.as_ref() {
-                        let _ = panel.send_state(&configuration.current().theme);
+                        let _ = panel.send_state(configuration.current().as_ref());
                     }
                 }
                 Some(control_panel::PanelCommand::ReloadConfig) => {
@@ -165,7 +165,7 @@ fn main() -> Result<()> {
                 Some(control_panel::PanelCommand::ToggleAutostart(enabled)) => {
                     autostart::set_enabled(enabled, &std::env::current_exe().context("获取当前可执行文件失败")?)?;
                     if let Some(panel) = control_panel.as_ref() {
-                        let _ = panel.send_state(&configuration.current().theme);
+                        let _ = panel.send_state(configuration.current().as_ref());
                     }
                 }
                 Some(control_panel::PanelCommand::OpenPluginDir) => {
@@ -193,7 +193,7 @@ fn main() -> Result<()> {
                         .spawn()
                         .with_context(|| format!("打开插件模板失败: {}", plugin_path.display()))?;
                     if let Some(panel) = control_panel.as_ref() {
-                        let _ = panel.send_state(&configuration.current().theme);
+                        let _ = panel.send_state(configuration.current().as_ref());
                     }
                 }
                 Some(control_panel::PanelCommand::OpenPluginFile(file)) => {
@@ -245,7 +245,7 @@ fn main() -> Result<()> {
                         )?;
                         if let Some(panel) = control_panel.as_ref() {
                             let _ = panel.notify_reload_done();
-                            let _ = panel.send_state(&configuration.current().theme);
+                            let _ = panel.send_state(configuration.current().as_ref());
                         }
                     }
                 }
@@ -277,7 +277,7 @@ fn main() -> Result<()> {
                         Ok(()) => {
                             if let Some(panel) = control_panel.as_ref() {
                                 let _ = panel.notify_theme_saved();
-                                let _ = panel.send_state(&configuration.current().theme);
+                                let _ = panel.send_state(configuration.current().as_ref());
                             }
                         }
                         Err(error) => log::warn!("保存主题失败: {error:#}"),
