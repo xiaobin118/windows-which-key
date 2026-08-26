@@ -6,7 +6,7 @@ Windows Which-Key 是 Windows 桌面快捷键提示工具：按住修饰键即�
 [![Build](https://github.com/xiaobin118/windows-which-key/actions/workflows/release.yml/badge.svg)](https://github.com/xiaobin118/windows-which-key/actions/workflows/release.yml)
 [![License](https://img.shields.io/github/license/xiaobin118/windows-which-key)](https://github.com/xiaobin118/windows-which-key)
 
-![Windows Which-Key 控制面板](docs/assets/ui-preview.png)
+[演示视频](docs/assets/demo.mp4)
 
 ## 为什么使用 Windows Which-Key？
 

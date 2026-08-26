@@ -6,7 +6,7 @@ Windows Which-Key is a Windows desktop shortcut hint tool: hold a modifier key a
 [![Build](https://github.com/xiaobin118/windows-which-key/actions/workflows/release.yml/badge.svg)](https://github.com/xiaobin118/windows-which-key/actions/workflows/release.yml)
 [![License](https://img.shields.io/github/license/xiaobin118/windows-which-key)](https://github.com/xiaobin118/windows-which-key)
 
-![Windows Which-Key control panel](docs/assets/ui-preview.png)
+[Demo video](docs/assets/demo.mp4)
 
 ## Why Windows Which-Key?
 
