@@ -6,7 +6,10 @@ Windows Which-Key is a Windows desktop shortcut hint tool: hold a modifier key a
 [![Build](https://github.com/xiaobin118/windows-which-key/actions/workflows/release.yml/badge.svg)](https://github.com/xiaobin118/windows-which-key/actions/workflows/release.yml)
 [![License](https://img.shields.io/github/license/xiaobin118/windows-which-key)](https://github.com/xiaobin118/windows-which-key)
 
-[Demo video](docs/assets/demo.mp4)
+<video controls muted loop width="800">
+  <source src="https://github.com/xiaobin118/windows-which-key/raw/refs/heads/master/docs/assets/demo.mp4" type="video/mp4">
+  Your browser does not support embedded video. [Open the demo video](docs/assets/demo.mp4).
+</video>
 
 ## Why Windows Which-Key?
 
