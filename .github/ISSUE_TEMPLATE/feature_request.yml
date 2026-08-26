@@ -1,0 +1,25 @@
+name: Feature request
+description: Suggest an improvement or a new built-in plugin
+title: "[Feature] "
+labels:
+  - enhancement
+  - good first issue
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      placeholder: What would this help you do?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: For shortcut or plugin requests, link to reliable documentation when possible.

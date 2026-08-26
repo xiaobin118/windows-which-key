@@ -1,6 +1,19 @@
 # Windows Which-Key v1.5.2
 
-Windows Which-Key is a Windows desktop shortcut hint tool: hold down the modifier key to view the available shortcuts for the current application. It does not execute or block regular shortcuts.
+Windows Which-Key is a Windows desktop shortcut hint tool: hold a modifier key and see the shortcuts available in the foreground app. It does not execute or block regular shortcuts.
+
+[![Release](https://img.shields.io/github/v/release/xiaobin118/windows-which-key?display_name=tag)](https://github.com/xiaobin118/windows-which-key/releases)
+[![Build](https://github.com/xiaobin118/windows-which-key/actions/workflows/release.yml/badge.svg)](https://github.com/xiaobin118/windows-which-key/actions/workflows/release.yml)
+[![License](https://img.shields.io/github/license/xiaobin118/windows-which-key)](https://github.com/xiaobin118/windows-which-key)
+
+![Windows Which-Key control panel](docs/assets/ui-preview.png)
+
+## Why Windows Which-Key?
+
+- See app-specific shortcuts without memorizing every keymap.
+- Built-in support for Codex, Claude Code, Chrome / Edge, Windows Terminal, VS Code, Word, Excel, and PowerPoint.
+- Add or override shortcuts with small, data-only TOML plugins.
+- Keep Windows global shortcuts visible alongside app shortcuts.
 
 Read in English: [README.md](./README.md)
 
@@ -19,6 +32,8 @@ Use one of the release packages from [GitHub Releases](https://github.com/xiaobi
 - NSIS installer: run `which-key-windows-setup.exe`. It installs the app, creates Start Menu and desktop shortcuts, and registers an uninstaller.
 - Portable zip: unzip `which-key-windows-v1.5.2-windows-x64.zip` and run `which-key-windows.exe`.
 - Source build: clone the repository and run `cargo run --bin which-key-windows`.
+
+The latest release includes both the installer and the portable zip. WebView2 Runtime is required.
 
 ## Usage Options
 
@@ -129,6 +144,12 @@ The app creates its config and plugin folders under `%APPDATA%\which-key-windows
 - Invalid user plugins are skipped with a warning; other plugins still load.
 - Invalid built-in plugins or global config block startup.
 - If WebView2 errors appear or the window does not show, repair WebView2 Runtime and try again.
+
+## Contributing
+
+Bug reports, shortcut corrections, new built-in plugin ideas, and code contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) before opening an issue or pull request.
+
+If this project helps you, consider giving it a star on GitHub.
 
 ## Inspiration
 [folke/which-key.nvim](https://github.com/folke/which-key.nvim) WhichKey helps you remember your Neovim keymaps, by showing available keybindings in a popup as you type.

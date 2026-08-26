@@ -2,6 +2,19 @@
 
 Windows Which-Key 是 Windows 桌面快捷键提示工具：按住修饰键即可查看当前应用可用的快捷键。它不会执行或拦截普通快捷键。
 
+[![Release](https://img.shields.io/github/v/release/xiaobin118/windows-which-key?display_name=tag)](https://github.com/xiaobin118/windows-which-key/releases)
+[![Build](https://github.com/xiaobin118/windows-which-key/actions/workflows/release.yml/badge.svg)](https://github.com/xiaobin118/windows-which-key/actions/workflows/release.yml)
+[![License](https://img.shields.io/github/license/xiaobin118/windows-which-key)](https://github.com/xiaobin118/windows-which-key)
+
+![Windows Which-Key 控制面板](docs/assets/ui-preview.png)
+
+## 为什么使用 Windows Which-Key？
+
+- 不用记住每个应用的全部快捷键，按住修饰键即可查看。
+- 内置支持 Codex、Claude Code、Chrome / Edge、Windows Terminal、VS Code、Word、Excel 与 PowerPoint。
+- 使用纯数据 TOML 插件添加或覆盖快捷键。
+- Windows 全局快捷键会与应用快捷键一起显示。
+
 Read in English: [README.md](./README.md)
 
 Read in Chinese: [README.zh-CN.md](./README.zh-CN.md)
@@ -115,6 +128,12 @@ priority = "essential"
 - 用户插件无效时，应用会忽略该文件并显示警告，其他插件仍会加载。
 - 内置插件或全局配置无效会阻止启动。
 - 若启动时提示 WebView2 相关错误或窗口没有显示，安装/修复 WebView2 Runtime 后重试。
+
+## 参与贡献
+
+欢迎提交问题报告、快捷键修正、新内置插件建议和代码贡献。提交 issue 或 pull request 前，请先阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
+如果这个项目对你有帮助，欢迎在 GitHub 上点一个 star。
 
 ## 灵感
 [folke/which-key.nvim](https://github.com/folke/which-key.nvim) 一个neovim插件， 帮助你使用自己的keymap
